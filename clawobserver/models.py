@@ -31,6 +31,12 @@ class QueueLaneSample:
 
 
 @dataclass(slots=True)
+class SessionTypeSample:
+    session_type: str
+    session_count: int
+
+
+@dataclass(slots=True)
 class GatewaySample:
     gateway_group: str
     gateway_count: int
@@ -44,6 +50,9 @@ class TokenCounterSample:
     channel: str | None
     input_tokens: int
     output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    cache_metrics_present: bool
 
 
 @dataclass(slots=True)
@@ -55,7 +64,7 @@ class RuntimeSnapshot:
     session_overview: SessionOverview
     agent_sessions: list[AgentSessionSample]
     session_states: list[SessionStateSample]
+    session_types: list[SessionTypeSample]
     queue_lanes: list[QueueLaneSample]
     gateways: list[GatewaySample]
     token_counters: list[TokenCounterSample]
-

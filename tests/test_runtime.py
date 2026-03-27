@@ -35,14 +35,33 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
                 "captured_at": "2026-03-27T12:00:00+00:00",
                 "source_version": "test",
                 "capture_status": "ok",
-                "sessions": {"total": 4, "active": 2},
+                "sessions": {
+                    "total": 4,
+                    "active": 2,
+                    "by_type": [
+                        {"session_type": "persistent", "session_count": 3},
+                        {"session_type": "one_shot", "session_count": 1},
+                    ],
+                },
                 "queues": [],
                 "gateways": {
                     "total": 1,
                     "exits_today": 3,
                     "states": {"online": 1, "offline": 0},
                 },
-                "tokens": [],
+                "tokens": [
+                    {
+                        "day_key": "2026-03-27",
+                        "provider": "openai",
+                        "model": "gpt-5.4",
+                        "channel": "direct",
+                        "input_tokens": 100,
+                        "output_tokens": 40,
+                        "cache_read_tokens": 60,
+                        "cache_write_tokens": 15,
+                        "cache_metrics_present": True,
+                    }
+                ],
             },
             fallback_time=datetime.fromisoformat("2026-03-27T12:00:00+00:00"),
         )
@@ -55,6 +74,11 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
         self.assertEqual(gateway_counts["online"], 1)
         self.assertEqual(gateway_counts["offline"], 0)
         self.assertEqual(gateway_counts["exits_today"], 3)
+        self.assertEqual(snapshot.session_types[0].session_type, "persistent")
+        self.assertEqual(snapshot.session_types[0].session_count, 3)
+        self.assertEqual(snapshot.token_counters[0].cache_read_tokens, 60)
+        self.assertEqual(snapshot.token_counters[0].cache_write_tokens, 15)
+        self.assertTrue(snapshot.token_counters[0].cache_metrics_present)
 
     def test_demo_payload_includes_gateway_exit_counts(self) -> None:
         payload = build_demo_payload(
@@ -63,6 +87,9 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
 
         self.assertIn("exits_today", payload["gateways"])
         self.assertGreaterEqual(payload["gateways"]["exits_today"], 0)
+        self.assertIn("by_type", payload["sessions"])
+        self.assertEqual(payload["queues"][0]["lane_name"], "queued_system_events")
+        self.assertIn("cache_read_tokens", payload["tokens"][0])
 
 
 if __name__ == "__main__":

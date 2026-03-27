@@ -14,6 +14,7 @@ from clawobserver.models import (
     RuntimeSnapshot,
     SessionOverview,
     SessionStateSample,
+    SessionTypeSample,
     TokenCounterSample,
 )
 
@@ -91,6 +92,26 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         ]
         self.assertEqual(exit_series, [1, 3])
 
+    def test_history_preserves_session_type_counts(self) -> None:
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-27T08:00:00+00:00",
+                active_sessions=8,
+                persistent_sessions=9,
+                one_shot_sessions=4,
+            )
+        )
+
+        payload = self.store.history_payload("current_day")
+
+        self.assertEqual(
+            payload["points"][0]["session_types"],
+            [
+                {"session_type": "persistent", "session_count": 9},
+                {"session_type": "one_shot", "session_count": 4},
+            ],
+        )
+
     def test_token_statistics_sum_latest_daily_counters(self) -> None:
         self.store.insert_snapshot(
             self._snapshot(
@@ -98,6 +119,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 active_sessions=8,
                 token_input=100,
                 token_output=40,
+                token_cache_read=20,
+                token_cache_write=10,
             )
         )
         self.store.insert_snapshot(
@@ -106,6 +129,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 active_sessions=9,
                 token_input=160,
                 token_output=60,
+                token_cache_read=40,
+                token_cache_write=20,
             )
         )
         self.store.insert_snapshot(
@@ -114,6 +139,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 active_sessions=10,
                 token_input=200,
                 token_output=90,
+                token_cache_read=60,
+                token_cache_write=30,
             )
         )
 
@@ -121,8 +148,12 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
 
         self.assertEqual(payload["total_input_tokens"], 360)
         self.assertEqual(payload["total_output_tokens"], 150)
+        self.assertEqual(payload["total_cache_read_tokens"], 100)
+        self.assertEqual(payload["total_cache_write_tokens"], 50)
+        self.assertAlmostEqual(payload["cache_hit_ratio"], 100 / 510)
         self.assertEqual(len(payload["daily_records"]), 2)
         self.assertTrue(payload["has_channel_data"])
+        self.assertTrue(payload["has_cache_data"])
 
     def test_current_day_token_statistics_use_latest_snapshot_only(self) -> None:
         self.store.insert_snapshot(
@@ -131,6 +162,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 active_sessions=8,
                 token_input=100,
                 token_output=40,
+                token_cache_read=25,
+                token_cache_write=5,
             )
         )
         self.store.insert_snapshot(
@@ -139,6 +172,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 active_sessions=10,
                 token_input=180,
                 token_output=75,
+                token_cache_read=45,
+                token_cache_write=15,
             )
         )
 
@@ -146,6 +181,9 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
 
         self.assertEqual(payload["total_input_tokens"], 180)
         self.assertEqual(payload["total_output_tokens"], 75)
+        self.assertEqual(payload["total_cache_read_tokens"], 45)
+        self.assertEqual(payload["total_cache_write_tokens"], 15)
+        self.assertAlmostEqual(payload["cache_hit_ratio"], 45 / 240)
         self.assertEqual(len(payload["daily_records"]), 1)
 
     def _snapshot(
@@ -155,9 +193,19 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         active_sessions: int,
         token_input: int = 120,
         token_output: int = 55,
+        token_cache_read: int = 0,
+        token_cache_write: int = 0,
         gateway_exit_count: int = 0,
+        persistent_sessions: int | None = None,
+        one_shot_sessions: int | None = None,
     ) -> RuntimeSnapshot:
         captured_at = datetime.fromisoformat(iso_timestamp)
+        persistent_total = (
+            persistent_sessions
+            if persistent_sessions is not None
+            else active_sessions + 3
+        )
+        one_shot_total = one_shot_sessions if one_shot_sessions is not None else 2
         return RuntimeSnapshot(
             captured_at=captured_at,
             capture_date=captured_at.date().isoformat(),
@@ -175,8 +223,12 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 SessionStateSample("active", active_sessions),
                 SessionStateSample("idle", 5),
             ],
+            session_types=[
+                SessionTypeSample("persistent", persistent_total),
+                SessionTypeSample("one_shot", one_shot_total),
+            ],
             queue_lanes=[
-                QueueLaneSample("dispatch", 2),
+                QueueLaneSample("queued_system_events", 2),
             ],
             gateways=[
                 GatewaySample("total", 3),
@@ -191,6 +243,9 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                     channel="default",
                     input_tokens=token_input,
                     output_tokens=token_output,
+                    cache_read_tokens=token_cache_read,
+                    cache_write_tokens=token_cache_write,
+                    cache_metrics_present=True,
                 )
             ],
         )

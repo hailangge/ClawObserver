@@ -113,12 +113,12 @@ function renderRealtime(payload) {
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2>Queue Depth by Lane</h2>
-            <p class="panel-subtitle">Direct runtime queue inspection by lane.</p>
+            <h2>Queue / Backlog State</h2>
+            <p class="panel-subtitle">The bundled OpenClaw adapter prefers structured per-lane queue data when available. Current public CLI/runtime data otherwise falls back to session-level queued system events instead of a fake lane depth.</p>
           </div>
           <p class="meta-line">Live runtime</p>
         </div>
-        ${renderBarList(payload.queue_lanes, "lane_name", "depth", "queued")}
+        ${renderBarList(payload.queue_lanes, "lane_name", "depth", "queued", formatQueueLabel)}
       </section>
     </section>
     <section class="panel-grid">
@@ -181,35 +181,38 @@ function renderHistorical(payload) {
   const agentActiveSeries = mapSeries(payload.points, "agent_sessions", "agent_name", "active_sessions", payload.mode);
   const agentTotalSeries = mapSeries(payload.points, "agent_sessions", "agent_name", "total_sessions", payload.mode);
   const sessionStateSeries = mapSeries(payload.points, "session_states", "state_name", "session_count", payload.mode);
+  const sessionTypeSeries = mapSeries(payload.points, "session_types", "session_type", "session_count", payload.mode);
   const queueSeries = mapSeries(payload.points, "queue_lanes", "lane_name", "depth", payload.mode);
   const gatewaySeries = mapSeries(payload.points, "gateways", "gateway_group", "gateway_count", payload.mode);
   const tokenModelSeries = collapseTokenSeries(payload.points, "model", payload.mode);
   const tokenProviderSeries = collapseTokenSeries(payload.points, "provider", payload.mode);
   const tokenChannelSeries = collapseTokenSeries(payload.points, "channel", payload.mode, true);
   const latestPoint = payload.points[payload.points.length - 1];
+  const latestPersistentSessions = findSessionTypeCount(latestPoint.session_types, "persistent");
+  const latestOneShotSessions = findSessionTypeCount(latestPoint.session_types, "one_shot");
 
   root.innerHTML = `
     <section class="metric-grid">
       ${metricCard("Archive mode", payload.mode === "intra_day_sampled" ? "Sampled" : "Daily last", `${payload.cadence_minutes}-minute archive cadence`)}
       ${metricCard("Archived points", payload.points.length, displayRange(state.range))}
       ${metricCard("Latest active sessions", activeSeries[activeSeries.length - 1].y, "Selected archive record")}
+      ${metricCard("Latest persistent sessions", latestPersistentSessions, "Conservative OpenClaw session-key classification")}
+      ${metricCard("Latest one-shot sessions", latestOneShotSessions, "Conservative OpenClaw session-key classification")}
       ${metricCard("Latest gateways", latestSeriesValue(gatewaySeries.total), "Selected archive record")}
       ${metricCard("Gateway exits today", gatewaySeries.exits_today ? latestSeriesValue(gatewaySeries.exits_today) : "Unavailable", "Captured from the live source at each archive snapshot")}
     </section>
     <section class="chart-grid">
-      ${panelChart("Active Sessions", "30-minute sampled state for current day, daily last-record summary beyond one day.", [
-        { name: "Active", values: activeSeries },
-      ])}
-      ${panelChart("Session Statistics", "Archive-backed session totals aligned to selected cadence semantics.", [
+      ${panelChart("Session Statistics", "Archive-backed session totals aligned to sampled/current-day or daily-last summary semantics.", [
         { name: "Total", values: totalSeries },
+        { name: "Active", values: activeSeries },
         { name: "Idle", values: idleSeries },
       ])}
+      ${panelPieChart("Session Type Totals", "Latest archived Persistent vs One-Shot totals. OpenClaw's public session rows do not expose a first-class mode field, so the bundled adapter classifies types conservatively from stable session-key conventions.", latestPoint.session_types, "session_type", "session_count", formatSessionTypeLabel)}
       ${panelChart("Gateway Reliability", "Gateway exit counts are archived with each snapshot. Exit totals prefer structured runtime data and otherwise use a conservative systemd journal heuristic.", seriesObjectToList(gatewaySeries, formatGatewayGroupLabel))}
       ${panelChart("Active Sessions by Agent", "Separate series remain separate objects rather than flattened aggregates.", seriesObjectToList(agentActiveSeries))}
       ${panelChart("Session State", "Historical state counts from archived samples.", seriesObjectToList(sessionStateSeries))}
-      ${panelChart("Queue Depth by Lane", "Per-lane queue depth from archived snapshots.", seriesObjectToList(queueSeries))}
+      ${panelChart("Queue / Backlog State", "Structured per-lane depth is used when OpenClaw exposes it. Otherwise the bundled adapter archives session-level queued system events so the panel stays truthful.", seriesObjectToList(queueSeries, formatQueueLabel))}
       ${panelChart("Agent Session Count", "Per-agent total session counts.", seriesObjectToList(agentTotalSeries))}
-      ${panelChart("Agent Active Sessions Count", "Per-agent active counts.", seriesObjectToList(agentActiveSeries))}
       ${panelChart("Token Throughput by Model", "Historical token counters within approved scope.", seriesObjectToList(tokenModelSeries))}
     </section>
     <section class="table-grid">
@@ -264,6 +267,8 @@ function renderTokens(payload) {
     <section class="metric-grid">
       ${metricCard("Input tokens", formatNumber(payload.total_input_tokens), "Summed from each day’s last archived record")}
       ${metricCard("Output tokens", formatNumber(payload.total_output_tokens), "Summed from each day’s last archived record")}
+      ${metricCard("Cache hit ratio", payload.has_cache_data ? formatPercent(payload.cache_hit_ratio) : "Unavailable", "Derived from archived cacheRead/cacheWrite counters when the runtime exposes them")}
+      ${metricCard("Cached input tokens", payload.has_cache_data ? formatNumber(payload.total_cache_read_tokens) : "Unavailable", "Read-side cache tokens across the selected daily end-state records")}
       ${metricCard("Daily records", payload.daily_records.length, displayRange(state.range))}
       ${metricCard("Channel breakdown", payload.has_channel_data ? "Available" : "Hidden", "Rendered only when archive data includes channel")}
     </section>
@@ -284,6 +289,8 @@ function renderTokens(payload) {
         { key: "captured_at", label: "Captured At", format: formatDateTime },
         { key: "input_tokens", label: "Input", mono: true, format: formatNumber },
         { key: "output_tokens", label: "Output", mono: true, format: formatNumber },
+        { key: "cache_read_tokens", label: "Cache Read", mono: true, format: formatNumber },
+        { key: "cache_hit_ratio", label: "Hit Ratio", mono: true, format: formatPercentOrBlank },
       ])}
     </section>
   `;
@@ -299,7 +306,7 @@ function metricCard(label, value, footnote) {
   `;
 }
 
-function renderBarList(items, labelKey, valueKey, suffix) {
+function renderBarList(items, labelKey, valueKey, suffix, labelFormatter = null) {
   if (!items.length) {
     return `<div class="chart-empty">No data</div>`;
   }
@@ -311,7 +318,7 @@ function renderBarList(items, labelKey, valueKey, suffix) {
           const width = (item[valueKey] / maxValue) * 100;
           return `
             <div class="bar-row">
-              <div>${item[labelKey]}</div>
+              <div>${labelFormatter ? labelFormatter(item[labelKey]) : item[labelKey]}</div>
               <div class="bar-track"><div class="bar-fill" style="width: ${width}%"></div></div>
               <div class="mono">${formatNumber(item[valueKey])} ${suffix}</div>
             </div>
@@ -380,6 +387,20 @@ function panelChart(title, subtitle, seriesList) {
   `;
 }
 
+function panelPieChart(title, subtitle, rows, labelKey, valueKey, labelFormatter = null) {
+  return `
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>${title}</h2>
+          <p class="panel-subtitle">${subtitle}</p>
+        </div>
+      </div>
+      ${renderPieChart(rows, labelKey, valueKey, labelFormatter)}
+    </section>
+  `;
+}
+
 function renderLineChart(seriesList) {
   const filtered = seriesList.filter((item) => item.values && item.values.length);
   if (!filtered.length) {
@@ -435,22 +456,52 @@ function renderLineChart(seriesList) {
           const cx = xScale(item.x);
           const cy = yScale(item.y);
           const color = palette[index % palette.length];
-          return `
-            <circle class="chart-point" cx="${cx}" cy="${cy}" r="4.5" stroke="${color}" stroke-width="2.5" />
-            <circle
-              class="chart-point-target"
-              cx="${cx}"
-              cy="${cy}"
-              r="10"
-              fill="transparent"
-              data-series="${escapeAttribute(series.name)}"
-              data-label="${escapeAttribute(item.x)}"
-              data-value="${escapeAttribute(formatNumber(item.y))}"
-            />
-          `;
+          return `<circle class="chart-point" cx="${cx}" cy="${cy}" r="4.5" stroke="${color}" stroke-width="2.5" />`;
         })
         .join("")
     )
+    .join("");
+
+  const seriesValueLookup = Object.fromEntries(
+    filtered.map((series, index) => [
+      series.name,
+      {
+        color: palette[index % palette.length],
+        byLabel: Object.fromEntries(series.values.map((item) => [item.x, item.y])),
+      },
+    ])
+  );
+  const hoverBuckets = xLabels
+    .map((label, index) => {
+      const current = xScale(label);
+      const left = index === 0 ? inset.left : (xScale(xLabels[index - 1]) + current) / 2;
+      const right = index === xLabels.length - 1 ? width - inset.right : (current + xScale(xLabels[index + 1])) / 2;
+      const bucketEntries = filtered
+        .map((series) => {
+          const value = seriesValueLookup[series.name].byLabel[label];
+          if (value === undefined) {
+            return null;
+          }
+          return {
+            name: series.name,
+            value,
+            color: seriesValueLookup[series.name].color,
+          };
+        })
+        .filter(Boolean);
+      return `
+        <rect
+          class="chart-hover-target"
+          x="${left}"
+          y="${inset.top}"
+          width="${Math.max(right - left, 1)}"
+          height="${plotHeight}"
+          fill="transparent"
+          data-label="${escapeAttribute(label)}"
+          data-points="${escapeAttribute(JSON.stringify(bucketEntries))}"
+        />
+      `;
+    })
     .join("");
 
   const labels = xLabels
@@ -470,6 +521,7 @@ function renderLineChart(seriesList) {
         <line class="chart-axis-line" x1="${inset.left}" y1="${inset.top}" x2="${inset.left}" y2="${height - inset.bottom}" />
         ${polylines}
         ${pointMarkers}
+        ${hoverBuckets}
         ${labels}
       </svg>
       <div class="chart-tooltip" hidden></div>
@@ -485,6 +537,62 @@ function renderLineChart(seriesList) {
           `
         )
         .join("")}
+    </div>
+  `;
+}
+
+function renderPieChart(rows, labelKey, valueKey, labelFormatter = null) {
+  if (!rows.length) {
+    return `<div class="chart-empty">No data</div>`;
+  }
+  const total = rows.reduce((sum, row) => sum + Number(row[valueKey] || 0), 0);
+  if (!total) {
+    return `<div class="chart-empty">No data</div>`;
+  }
+  const radius = 78;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const segments = rows
+    .map((row, index) => {
+      const value = Number(row[valueKey] || 0);
+      const segmentLength = (value / total) * circumference;
+      const segment = `
+        <circle
+          class="pie-segment"
+          cx="140"
+          cy="130"
+          r="${radius}"
+          fill="none"
+          stroke="${palette[index % palette.length]}"
+          stroke-width="28"
+          stroke-dasharray="${segmentLength} ${circumference - segmentLength}"
+          stroke-dashoffset="${-offset}"
+          transform="rotate(-90 140 130)"
+        />
+      `;
+      offset += segmentLength;
+      return segment;
+    })
+    .join("");
+
+  return `
+    <div class="pie-panel">
+      <svg class="pie-chart" viewBox="0 0 280 260" preserveAspectRatio="xMidYMid meet">
+        ${segments}
+        <circle cx="140" cy="130" r="54" fill="rgba(9, 14, 22, 0.92)"></circle>
+        <text class="pie-total-label" x="140" y="122" text-anchor="middle">Latest total</text>
+        <text class="pie-total-value" x="140" y="146" text-anchor="middle">${formatNumber(total)}</text>
+      </svg>
+      <div class="chart-legend">
+        ${rows
+          .map((row, index) => `
+            <span class="legend-item">
+              <span class="legend-swatch" style="background: ${palette[index % palette.length]}"></span>
+              <span>${labelFormatter ? labelFormatter(row[labelKey]) : row[labelKey]} · ${formatNumber(row[valueKey])} (${formatPercent(Number(row[valueKey]) / total)})</span>
+            </span>
+          `)
+          .join("")}
+      </div>
     </div>
   `;
 }
@@ -596,6 +704,19 @@ function formatGatewayGroupLabel(value) {
   }[value] || String(value).replaceAll("_", " ");
 }
 
+function formatQueueLabel(value) {
+  return {
+    queued_system_events: "Queued system events",
+  }[value] || String(value).replaceAll("_", " ");
+}
+
+function formatSessionTypeLabel(value) {
+  return {
+    persistent: "Persistent",
+    one_shot: "One-Shot",
+  }[value] || String(value).replaceAll("_", " ");
+}
+
 function labelForPoint(point, mode) {
   if (mode === "intra_day_sampled") {
     return new Date(point.captured_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -618,6 +739,17 @@ function formatDateTime(value) {
 
 function formatNumber(value) {
   return Number(value).toLocaleString();
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(value)) {
+    return "Unavailable";
+  }
+  return `${(value * 100).toFixed(value > 0 && value < 0.1 ? 1 : 0)}%`;
+}
+
+function formatPercentOrBlank(value) {
+  return Number.isFinite(value) ? formatPercent(value) : "";
 }
 
 function collectOrderedLabels(seriesList) {
@@ -655,13 +787,27 @@ function niceStep(rawValue) {
 function bindChartTooltips(scope) {
   scope.querySelectorAll(".chart-shell").forEach((shell) => {
     const tooltip = shell.querySelector(".chart-tooltip");
-    shell.querySelectorAll(".chart-point-target").forEach((point) => {
+    shell.querySelectorAll(".chart-hover-target").forEach((point) => {
       const showTooltip = (event) => {
+        const entries = parseTooltipEntries(point.dataset.points);
         tooltip.hidden = false;
         tooltip.innerHTML = `
-          <span class="chart-tooltip-series">${escapeHtml(point.dataset.series || "")}</span>
           <span class="chart-tooltip-label">${escapeHtml(point.dataset.label || "")}</span>
-          <span class="chart-tooltip-value">${escapeHtml(point.dataset.value || "")}</span>
+          <div class="chart-tooltip-list">
+            ${entries
+              .map(
+                (entry) => `
+                  <div class="chart-tooltip-row">
+                    <span class="chart-tooltip-series">
+                      <span class="legend-swatch" style="background: ${escapeAttribute(entry.color)}"></span>
+                      ${escapeHtml(entry.name)}
+                    </span>
+                    <span class="chart-tooltip-value">${escapeHtml(formatNumber(entry.value))}</span>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
         `;
         positionTooltip(shell, tooltip, event);
       };
@@ -682,6 +828,20 @@ function positionTooltip(shell, tooltip, event) {
   const maxTop = Math.max(rect.height - tooltip.offsetHeight - 8, 8);
   tooltip.style.left = `${Math.min(Math.max(offsetX, 8), maxLeft)}px`;
   tooltip.style.top = `${Math.min(Math.max(offsetY, 8), maxTop)}px`;
+}
+
+function parseTooltipEntries(rawValue) {
+  try {
+    const parsed = JSON.parse(rawValue || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function findSessionTypeCount(items, sessionType) {
+  const match = items.find((item) => item.session_type === sessionType);
+  return match ? match.session_count : 0;
 }
 
 function escapeHtml(value) {

@@ -16,6 +16,7 @@ from .models import (
     RuntimeSnapshot,
     SessionOverview,
     SessionStateSample,
+    SessionTypeSample,
     TokenCounterSample,
 )
 
@@ -40,6 +41,14 @@ def _to_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _session_type_sort_key(session_type: str) -> tuple[int, str]:
+    order = {
+        "persistent": 0,
+        "one_shot": 1,
+    }
+    return (order.get(session_type, 99), session_type)
+
+
 def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
     captured_at = at_time or _now()
     minute_index = captured_at.hour * 2 + captured_at.minute // 30
@@ -59,6 +68,9 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
             "channel": "default",
             "input_tokens": 390_000 + minute_index * 2_200,
             "output_tokens": 146_000 + minute_index * 1_180,
+            "cache_read_tokens": 112_000 + minute_index * 840,
+            "cache_write_tokens": 19_000 + minute_index * 120,
+            "cache_metrics_present": True,
         },
         {
             "provider": "openai",
@@ -66,6 +78,9 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
             "channel": "gateway-a",
             "input_tokens": 210_000 + minute_index * 1_300,
             "output_tokens": 96_000 + minute_index * 720,
+            "cache_read_tokens": 48_000 + minute_index * 360,
+            "cache_write_tokens": 8_500 + minute_index * 80,
+            "cache_metrics_present": True,
         },
     ]
 
@@ -103,11 +118,13 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
                 {"state_name": "idle", "session_count": total_sessions - total_active},
                 {"state_name": "waiting", "session_count": 9 + minute_index % 5},
             ],
+            "by_type": [
+                {"session_type": "persistent", "session_count": total_sessions - 6},
+                {"session_type": "one_shot", "session_count": 6},
+            ],
         },
         "queues": [
-            {"lane_name": "dispatch", "depth": 4 + minute_index % 4},
-            {"lane_name": "evaluation", "depth": 2 + (minute_index + 1) % 3},
-            {"lane_name": "retry", "depth": 1 + minute_index % 2},
+            {"lane_name": "queued_system_events", "depth": 3 + minute_index % 5},
         ],
         "gateways": {
             "total": 8,
@@ -190,6 +207,18 @@ class LiveRuntimeAdapter:
                 SessionStateSample("idle", idle_sessions),
             ]
 
+        session_types = []
+        for item in sessions.get("by_type", []):
+            session_types.append(
+                SessionTypeSample(
+                    session_type=str(item.get("session_type", "unknown")),
+                    session_count=_to_int(item.get("session_count")),
+                )
+            )
+        session_types.sort(
+            key=lambda item: (-item.session_count, _session_type_sort_key(item.session_type))
+        )
+
         queue_lanes = []
         for item in payload.get("queues", []):
             queue_lanes.append(
@@ -216,6 +245,9 @@ class LiveRuntimeAdapter:
                     ),
                     input_tokens=_to_int(item.get("input_tokens")),
                     output_tokens=_to_int(item.get("output_tokens")),
+                    cache_read_tokens=_to_int(item.get("cache_read_tokens")),
+                    cache_write_tokens=_to_int(item.get("cache_write_tokens")),
+                    cache_metrics_present=bool(item.get("cache_metrics_present", False)),
                 )
             )
 
@@ -231,6 +263,7 @@ class LiveRuntimeAdapter:
             ),
             agent_sessions=by_agent,
             session_states=by_state,
+            session_types=session_types,
             queue_lanes=queue_lanes,
             gateways=gateways,
             token_counters=token_counters,

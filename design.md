@@ -36,7 +36,7 @@ This split is mandatory because the audited historical panels originated from Si
 
 1. **Live collector adapter**
    - reads OpenClaw runtime/CLI/API state on demand
-   - normalizes active sessions, per-agent session counts, queue depth, gateway counts, and the conservative gateway exits-today metric
+   - normalizes active sessions, per-agent session counts, session-type totals, truthful queue/backlog state, gateway counts, and the conservative gateway exits-today metric
 
 2. **Archive snapshot job**
    - runs roughly every 30 minutes
@@ -112,8 +112,8 @@ Purpose:
 
 Purpose:
 - supports Active Sessions by Agent
-- supports Agent Active Sessions Count
 - supports Agent Session Count
+- supplies both the active-series chart and the latest agent activity table without duplicating the historical chart family
 
 ### 4.4 Session state samples
 
@@ -133,9 +133,22 @@ Purpose:
 - `depth`
 
 Purpose:
-- supports Queue Depth by Lane
+- supports truthful queue/backlog history
+- stores real lane depth if OpenClaw exposes it
+- otherwise stores the best public runtime backlog metric available, such as queued system events
 
-### 4.6 Token daily samples
+### 4.6 Session type samples
+
+**Table: `session_type_samples`**
+- `snapshot_id`
+- `session_type`
+- `session_count`
+
+Purpose:
+- supports Persistent vs One-Shot comparison
+- supports the historical session-type pie chart
+
+### 4.7 Token daily samples
 
 **Table: `token_counter_samples`**
 - `snapshot_id`
@@ -145,12 +158,16 @@ Purpose:
 - `channel`
 - `input_tokens`
 - `output_tokens`
+- `cache_read_tokens`
+- `cache_write_tokens`
+- `cache_metrics_present`
 
 Purpose:
 - supports Token Throughput per day by Model / Provider / Channel
 - supports token statistics page with daily-reset counter handling
+- supports cache-hit ratio when OpenClaw exposes cache counters cleanly
 
-### 4.7 Gateway samples
+### 4.8 Gateway samples
 
 **Table: `gateway_samples`**
 - `snapshot_id`
@@ -215,14 +232,15 @@ Behavior:
 ### 6.2 Historical page
 
 Sections:
-1. Active Sessions
-2. Active Sessions by Agent
-3. Session State
-4. Agent Activity Statistics
-5. Queue Depth by Lane
-6. Agent Active Sessions Count / Session Statistics / Agent Session Count group
-7. Gateway Reliability
-8. Token Throughput by Model / Provider / Channel
+1. Session Statistics with Total / Active / Idle together
+2. Session Type Totals pie chart for Persistent vs One-Shot
+3. Active Sessions by Agent
+4. Session State
+5. Agent Activity Statistics
+6. Queue / Backlog State
+7. Agent Session Count
+8. Gateway Reliability
+9. Token Throughput by Model / Provider / Channel
 
 Behavior:
 - shared range selector
@@ -278,7 +296,7 @@ Avoid:
 - emphasize legends and labels over visual effects
 - use consistent color mapping per agent/lane/state wherever possible
 - render visible Y-axis numeric labels
-- support mouse-hover exact-value tooltips on historical charts
+- support shared mouse-hover tooltips on historical charts so hovering an X bucket reveals every series value at that bucket
 
 ## 8. Operator documentation expectations
 
@@ -302,7 +320,8 @@ Minimum README coverage:
 1. If live runtime access fails, realtime panels show explicit degraded-state messaging rather than stale values disguised as current.
 2. If archive data is missing for a day, charts show a gap rather than synthetic interpolation.
 3. If token channel data is absent, the UI hides that breakdown cleanly rather than inventing an `unknown` distribution unless the source explicitly emits it.
-4. If gateway exit counts are unavailable, the UI shows them as unavailable rather than silently substituting zero.
+4. If token cache counters are absent, the cache-hit ratio is shown as unavailable rather than silently substituting zero.
+5. If gateway exit counts are unavailable, the UI shows them as unavailable rather than silently substituting zero.
 
 ## 10. Implementation sequencing
 

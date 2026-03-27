@@ -87,6 +87,16 @@ class ArchiveStore:
                 CREATE INDEX IF NOT EXISTS idx_session_state_samples_snapshot
                     ON session_state_samples (snapshot_id, state_name);
 
+                CREATE TABLE IF NOT EXISTS session_type_samples (
+                    snapshot_id INTEGER NOT NULL,
+                    session_type TEXT NOT NULL,
+                    session_count INTEGER NOT NULL,
+                    FOREIGN KEY (snapshot_id) REFERENCES archive_snapshots (id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_session_type_samples_snapshot
+                    ON session_type_samples (snapshot_id, session_type);
+
                 CREATE TABLE IF NOT EXISTS queue_lane_samples (
                     snapshot_id INTEGER NOT NULL,
                     lane_name TEXT NOT NULL,
@@ -122,6 +132,38 @@ class ArchiveStore:
                     ON gateway_samples (snapshot_id, gateway_group);
                 """
             )
+            self._ensure_column(
+                connection,
+                "token_counter_samples",
+                "cache_read_tokens",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            self._ensure_column(
+                connection,
+                "token_counter_samples",
+                "cache_write_tokens",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            self._ensure_column(
+                connection,
+                "token_counter_samples",
+                "cache_metrics_present",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+
+    def _ensure_column(
+        self,
+        connection: sqlite3.Connection,
+        table_name: str,
+        column_name: str,
+        column_spec: str,
+    ) -> None:
+        existing = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+        if any(str(row["name"]) == column_name for row in existing):
+            return
+        connection.execute(
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_spec}"
+        )
 
     def insert_snapshot(self, snapshot: RuntimeSnapshot) -> int:
         with self._connect() as connection:
@@ -200,6 +242,24 @@ class ArchiveStore:
 
             connection.executemany(
                 """
+                INSERT INTO session_type_samples (
+                    snapshot_id,
+                    session_type,
+                    session_count
+                ) VALUES (?, ?, ?)
+                """,
+                [
+                    (
+                        snapshot_id,
+                        item.session_type,
+                        item.session_count,
+                    )
+                    for item in snapshot.session_types
+                ],
+            )
+
+            connection.executemany(
+                """
                 INSERT INTO queue_lane_samples (
                     snapshot_id,
                     lane_name,
@@ -225,8 +285,11 @@ class ArchiveStore:
                     model,
                     channel,
                     input_tokens,
-                    output_tokens
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    output_tokens,
+                    cache_read_tokens,
+                    cache_write_tokens,
+                    cache_metrics_present
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -237,6 +300,9 @@ class ArchiveStore:
                         item.channel,
                         item.input_tokens,
                         item.output_tokens,
+                        item.cache_read_tokens,
+                        item.cache_write_tokens,
+                        1 if item.cache_metrics_present else 0,
                     )
                     for item in snapshot.token_counters
                 ],
@@ -292,6 +358,7 @@ class ArchiveStore:
                 "session_overview": None,
                 "agent_sessions": [],
                 "session_states": [],
+                "session_types": [],
                 "queue_lanes": [],
                 "gateways": [],
                 "token_counters": [],
@@ -335,6 +402,16 @@ class ArchiveStore:
                 connection,
                 points_by_id,
                 snapshot_ids,
+                "session_type_samples",
+                lambda row: {
+                    "session_type": row["session_type"],
+                    "session_count": row["session_count"],
+                },
+            )
+            self._fill_points(
+                connection,
+                points_by_id,
+                snapshot_ids,
                 "queue_lane_samples",
                 lambda row: {
                     "lane_name": row["lane_name"],
@@ -363,10 +440,20 @@ class ArchiveStore:
                     "channel": row["channel"],
                     "input_tokens": row["input_tokens"],
                     "output_tokens": row["output_tokens"],
+                    "cache_read_tokens": row["cache_read_tokens"],
+                    "cache_write_tokens": row["cache_write_tokens"],
+                    "cache_metrics_present": bool(row["cache_metrics_present"]),
                 },
             )
 
         payload["points"] = [points_by_id[snapshot_id] for snapshot_id in ordered_ids]
+        for point in payload["points"]:
+            point["session_types"].sort(
+                key=lambda item: (
+                    self._session_type_sort_order(str(item["session_type"])),
+                    str(item["session_type"]),
+                )
+            )
         return payload
 
     def token_statistics_payload(self, range_key: str) -> dict[str, Any]:
@@ -378,10 +465,14 @@ class ArchiveStore:
                 "daily_records": [],
                 "total_input_tokens": 0,
                 "total_output_tokens": 0,
+                "total_cache_read_tokens": 0,
+                "total_cache_write_tokens": 0,
+                "cache_hit_ratio": None,
                 "provider_distribution": [],
                 "model_distribution": [],
                 "channel_distribution": [],
                 "has_channel_data": False,
+                "has_cache_data": False,
             }
 
         snapshot_ids = [int(row["id"]) for row in snapshot_rows]
@@ -404,7 +495,10 @@ class ArchiveStore:
                     model,
                     channel,
                     input_tokens,
-                    output_tokens
+                    output_tokens,
+                    cache_read_tokens,
+                    cache_write_tokens,
+                    cache_metrics_present
                 FROM token_counter_samples
                 WHERE snapshot_id IN ({placeholders})
                 ORDER BY day_key ASC, provider ASC, model ASC, channel ASC
@@ -414,6 +508,8 @@ class ArchiveStore:
 
         total_input_tokens = 0
         total_output_tokens = 0
+        total_cache_read_tokens = 0
+        total_cache_write_tokens = 0
         provider_totals: dict[str, dict[str, Any]] = defaultdict(
             lambda: {"name": "", "input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         )
@@ -425,16 +521,22 @@ class ArchiveStore:
         )
         daily_records: dict[str, dict[str, Any]] = {}
         has_channel_data = False
+        has_cache_data = False
 
         for row in token_rows:
             snapshot_id = int(row["snapshot_id"])
             day_key = str(row["day_key"])
             input_tokens = int(row["input_tokens"])
             output_tokens = int(row["output_tokens"])
+            cache_read_tokens = int(row["cache_read_tokens"])
+            cache_write_tokens = int(row["cache_write_tokens"])
             total_tokens = input_tokens + output_tokens
 
             total_input_tokens += input_tokens
             total_output_tokens += output_tokens
+            total_cache_read_tokens += cache_read_tokens
+            total_cache_write_tokens += cache_write_tokens
+            has_cache_data = has_cache_data or bool(row["cache_metrics_present"])
 
             provider_name = str(row["provider"])
             provider_totals[provider_name]["name"] = provider_name
@@ -464,9 +566,27 @@ class ArchiveStore:
                     "captured_at": metadata_by_id[snapshot_id]["captured_at"],
                     "input_tokens": 0,
                     "output_tokens": 0,
+                    "cache_read_tokens": 0,
+                    "cache_write_tokens": 0,
+                    "cache_metrics_present": False,
+                    "cache_hit_ratio": None,
                 }
             daily_records[day_key]["input_tokens"] += input_tokens
             daily_records[day_key]["output_tokens"] += output_tokens
+            daily_records[day_key]["cache_read_tokens"] += cache_read_tokens
+            daily_records[day_key]["cache_write_tokens"] += cache_write_tokens
+            daily_records[day_key]["cache_metrics_present"] = (
+                daily_records[day_key]["cache_metrics_present"]
+                or bool(row["cache_metrics_present"])
+            )
+
+        for record in daily_records.values():
+            record["cache_hit_ratio"] = self._cache_hit_ratio(
+                record["input_tokens"],
+                record["cache_read_tokens"],
+                record["cache_write_tokens"],
+                available=bool(record["cache_metrics_present"]),
+            )
 
         return {
             "range_key": range_key,
@@ -474,10 +594,19 @@ class ArchiveStore:
             "daily_records": list(daily_records.values()),
             "total_input_tokens": total_input_tokens,
             "total_output_tokens": total_output_tokens,
+            "total_cache_read_tokens": total_cache_read_tokens,
+            "total_cache_write_tokens": total_cache_write_tokens,
+            "cache_hit_ratio": self._cache_hit_ratio(
+                total_input_tokens,
+                total_cache_read_tokens,
+                total_cache_write_tokens,
+                available=has_cache_data,
+            ),
             "provider_distribution": self._sorted_totals(provider_totals),
             "model_distribution": self._sorted_totals(model_totals),
             "channel_distribution": self._sorted_totals(channel_totals),
             "has_channel_data": has_channel_data,
+            "has_cache_data": has_cache_data,
         }
 
     def _selected_snapshot_rows(
@@ -544,6 +673,7 @@ class ArchiveStore:
             "session_overview_samples": "session_overview",
             "agent_session_samples": "agent_sessions",
             "session_state_samples": "session_states",
+            "session_type_samples": "session_types",
             "queue_lane_samples": "queue_lanes",
             "gateway_samples": "gateways",
             "token_counter_samples": "token_counters",
@@ -560,3 +690,24 @@ class ArchiveStore:
         items = list(totals.values())
         items.sort(key=lambda item: (-int(item["total_tokens"]), str(item["name"])))
         return items
+
+    def _cache_hit_ratio(
+        self,
+        input_tokens: int,
+        cache_read_tokens: int,
+        cache_write_tokens: int,
+        *,
+        available: bool,
+    ) -> float | None:
+        if not available:
+            return None
+        total_input = input_tokens + cache_read_tokens + cache_write_tokens
+        if total_input <= 0:
+            return 0.0
+        return cache_read_tokens / total_input
+
+    def _session_type_sort_order(self, session_type: str) -> int:
+        return {
+            "persistent": 0,
+            "one_shot": 1,
+        }.get(session_type, 99)

@@ -42,6 +42,13 @@ class ClawObserverApp:
                 }
                 for item in snapshot.session_states
             ],
+            "session_types": [
+                {
+                    "session_type": item.session_type,
+                    "session_count": item.session_count,
+                }
+                for item in snapshot.session_types
+            ],
             "queue_lanes": [
                 {
                     "lane_name": item.lane_name,
@@ -89,4 +96,3 @@ class ClawObserverApp:
             inserted += 1
             current_time += timedelta(minutes=interval)
         return inserted
-

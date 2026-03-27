@@ -30,9 +30,9 @@ This split matters because a 30-minute archive cannot honestly reproduce minute-
 
 The current implementation covers the approved monitoring scope:
 
-- realtime overview of total sessions, active sessions, derived idle sessions, queue depth, per-agent session counts, gateway counts, and today’s gateway exit count
-- historical overview panels derived from archived snapshots, including gateway reliability history
-- token statistics based on daily end-of-day archive selection
+- realtime overview of total sessions, active sessions, derived idle sessions, truthful queue/backlog state, per-agent session counts, gateway counts, and today’s gateway exit count
+- historical overview panels derived from archived snapshots, including gateway reliability history plus Persistent vs One-Shot session comparison
+- token statistics based on daily end-of-day archive selection, including cache-hit ratio when the runtime exposes cache counters cleanly
 - local SQLite storage with no external database dependency
 - host-native user-level `systemd` deployment
 - branded header artwork and operator-oriented historical charts with visible Y-axis labels plus hover tooltips
@@ -182,10 +182,14 @@ ClawObserver resolves live runtime data in this order:
 The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI adapter. It:
 
 - runs `openclaw sessions --all-agents --json`
+- runs `openclaw gateway call status --json`
 - derives active versus idle sessions from `ageMs`
 - aggregates per-agent totals and token counters
+- classifies Persistent vs One-Shot sessions conservatively from stable session-key conventions when the public session rows do not expose a first-class mode field
+- reads the OpenClaw session-store files referenced by the CLI output so archived token statistics can include `cacheRead` / `cacheWrite` counters when they are available
 - runs `openclaw gateway status --json`
 - reports gateway totals conservatively as available/not available rather than inventing extra metrics
+- prefers structured per-lane queue depth when OpenClaw exposes it and otherwise falls back to the public `queuedSystemEvents` backlog count instead of inventing a lane
 - emits `gateways.exits_today` when it can do so conservatively
   - if OpenClaw exposes a structured exits-today value in gateway status output, the adapter uses that directly
   - otherwise, on Linux hosts using the OpenClaw user-level `systemd` gateway unit, the adapter counts today’s `Main process exited` journal events for `openclaw-gateway.service`
@@ -194,8 +198,10 @@ The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI
 
 Current adapter limitations are intentional:
 
-- queue depth is reported as a placeholder `default=0` lane because no richer stable queue source is defined here
+- OpenClaw's current public CLI/runtime status output does not appear to expose the internal per-lane queue sizes that exist inside OpenClaw itself, so the bundled adapter archives the public session-level `queuedSystemEvents` backlog when true lane data is not published
+- session-type totals are conservative and documented: the bundled adapter uses stable session-key conventions such as `:subagent:` and `:run:` to identify One-Shot sessions because the current public session rows do not publish a direct mode field for all sessions
 - gateway history remains limited to count snapshots, including the archived `exits_today` sample when available
+- cache-hit ratio is shown only when the runtime/archive source includes cache counters; custom adapters that omit those counters will surface the ratio as unavailable
 - if the adapter command fails, live requests and archive capture requests will fail until the configured runtime source is corrected
 
 If you provide your own runtime command instead of the bundled adapter, emit the gateway reliability metric as `gateways.exits_today` in the normalized payload so it appears in both realtime and historical views.
@@ -216,7 +222,7 @@ Operationally, this means:
 - history may be empty immediately after deployment until the first successful archive capture completes
 - if you want an initial historical sample right away, run `systemctl --user start clawobserver-capture.service`
 - longer-range charts are daily summaries, not minute-resolution traces
-- historical line charts now render visible Y-axis numeric labels and mouse-hover point tooltips with exact values
+- historical line charts now render visible Y-axis numeric labels and shared mouse-hover tooltips that reveal every series value at the hovered X bucket
 
 ## Troubleshooting
 

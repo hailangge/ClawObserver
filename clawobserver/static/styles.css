@@ -299,10 +299,22 @@ code {
   text-transform: uppercase;
 }
 
-.chart-tooltip-label,
-.chart-tooltip-value {
+.chart-tooltip-label {
   display: block;
   margin-top: 4px;
+}
+
+.chart-tooltip-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chart-tooltip-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .chart-tooltip-value {
@@ -328,8 +340,36 @@ code {
   fill: var(--panel);
 }
 
-.chart-point-target {
+.chart-hover-target {
   cursor: crosshair;
+}
+
+.pie-panel {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.pie-chart {
+  width: min(100%, 320px);
+  min-height: 260px;
+}
+
+.pie-total-label,
+.pie-total-value {
+  fill: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.pie-total-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: var(--muted);
+}
+
+.pie-total-value {
+  font-size: 24px;
 }
 
 .chart-empty {

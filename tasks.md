@@ -20,12 +20,20 @@
 - [x] Add gateway exit counts to realtime and historical monitoring
 - [x] Update operator manual/spec docs for the new UX and gateway reliability metrics
 - [x] Final review and commit implementation changes
+- [x] Investigate and improve Queue Depth by Lane real data sourcing
+- [x] Rework historical session charts (Total/Idle/Active + session-type pie)
+- [x] Remove redundant per-agent historical chart
+- [x] Add token cache-hit ratio if the runtime exposes it cleanly
+- [x] Improve historical multi-series tooltip behavior
+- [x] Update manual/spec docs for the new historical UX and queue semantics
+- [x] Run validation for the optimization pass
+- [x] Commit the optimization pass
 
 ## Notes
-- Current status: the next feature pass is implemented and validated in-repo for branded artwork, improved historical chart UX, gateway exit reliability metrics, and GitHub release metadata; repo changes are committed and pushed.
+- Current status: the optimization-pass implementation is complete, validated locally, and committed in-repo. Push/restart steps remain separate follow-up work.
 - App scaffold created with a dependency-light Python server, SQLite archive store, static UI shell, and built-in demo runtime adapter for local validation.
 - Verified locally on 2026-03-27: `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver`, seeded demo history, served the app, and smoke-tested `/api/health`, `/api/live/overview`, `/api/history/overview?range=last_7_days`, `/api/history/tokens?range=last_7_days`, and `POST /api/archive/capture` successfully.
-- Verified against a real OpenClaw runtime source on 2026-03-27 by setting `CLAWOBSERVER_RUNTIME_COMMAND` to an adapter built from `openclaw sessions --all-agents --json` plus `openclaw gateway status`, then smoke-testing `/api/health`, `/api/live/overview`, `/api/history/overview?range=current_day`, `/api/history/tokens?range=current_day`, and `POST /api/archive/capture` successfully.
+- Verified against a real OpenClaw runtime source on 2026-03-27 by setting `CLAWOBSERVER_RUNTIME_COMMAND` to the bundled adapter, which now combines `openclaw sessions --all-agents --json`, `openclaw gateway call status --json`, `openclaw gateway status --json`, and session-store cache counters. Smoke tests for `/api/health`, `/api/live/overview`, `/api/history/overview?range=current_day`, `/api/history/tokens?range=current_day`, and `POST /api/archive/capture` all succeeded.
 - Registered the app as user-level systemd units on 2026-03-27 via `./scripts/install_user_service.sh`: `clawobserver.service` is active/running, `clawobserver-capture.timer` is active/waiting, and a manual `systemctl --user start clawobserver-capture.service` completed successfully.
 - Added the operator-facing deployment entrypoint `./scripts/deploy.sh` on 2026-03-27 and kept `./scripts/install_user_service.sh` as a compatibility wrapper. The repo now documents the script-first deployment flow, default loopback bind, runtime adapter precedence, and archive cadence semantics.
 - Repo-local validation for the public-release edits remained non-destructive: shell syntax checks, unit tests, doc review, and a rerun of `./scripts/deploy.sh` all passed before publication.
@@ -35,3 +43,7 @@
 - Live runtime state and archive-backed history must remain separate paths.
 - Gateway reliability history remains conservative: `exits_today` is archived as a count snapshot, and the bundled adapter uses structured runtime data when available or a documented `systemd` journal exit-event heuristic otherwise.
 - After restarting the user service and triggering a fresh archive capture on 2026-03-27, `exits_today` was observed in realtime payloads immediately and in the latest historical archive point once a new snapshot had been captured.
+- Queue semantics are now explicit: OpenClaw's current public CLI/runtime data did not expose the internal per-lane queue sizes during investigation on 2026-03-27, so the bundled adapter records structured lane depth only if it appears and otherwise archives the truthful `queuedSystemEvents` backlog count instead of a fake default lane.
+- Session-type comparison is archived via conservative Persistent vs One-Shot classification from stable OpenClaw session-key conventions because the current public session rows did not publish a first-class mode field for all sessions during the 2026-03-27 investigation.
+- Token cache-hit ratio is now included when archived `cacheRead` / `cacheWrite` counters are present; if a runtime source omits those counters, the UI surfaces the ratio as unavailable rather than zero.
+- Current-day token rollups now ignore sessions whose latest known update timestamp is not from the selected day, which keeps stale legacy models like `gpt-5.3-codex` from polluting today’s approximate token view.

@@ -56,7 +56,9 @@ The product must provide a realtime overview page containing at minimum:
    - total sessions
    - active sessions
    - derived idle sessions
-5. **Queue depth by lane**
+5. **Queue / backlog state**
+   - if OpenClaw exposes structured per-lane queue depth safely, use it
+   - if public runtime data only exposes session-level backlog such as queued system events, the UI must present that honest session-level backlog instead of inventing lane depth
 6. **Gateway counts**
    - must include total currently known gateways
    - if runtime exposes gateway state safely, may also show per-state counts such as online/offline
@@ -69,17 +71,24 @@ The product must provide a historical page grounded in the audited dashboard def
 
 Required historical panels:
 
-1. **Active Sessions**
+1. **Session Statistics**
+   - total sessions
+   - active sessions
+   - idle sessions
+   - this may subsume a standalone Active Sessions chart if that produces a cleaner historical view
 2. **Active Sessions by Agent**
 3. **Session State**
 4. **Agent Activity Statistics**
-5. **Queue Depth by Lane**
-6. **Gateway Reliability**
+5. **Queue / Backlog State**
+   - use lane depth only when the live/archive source actually exposes lane depth
+   - otherwise show the truthful backlog metric that is available, such as queued system events
+6. **Session Type Comparison**
+   - compare Persistent vs One-Shot session totals
+   - a right-side pie chart for the latest archived point is acceptable
+7. **Gateway Reliability**
    - must include historical snapshots of the gateway exit count for the selected range
-7. **Token Throughput per day by Model / Provider / Channel**
-8. **Agent Active Sessions Count**
-9. **Session Statistics**
-10. **Agent Session Count**
+8. **Token Throughput per day by Model / Provider / Channel**
+9. **Agent Session Count**
 
 Historical interpretation rules:
 - If the archive cadence is 30 minutes, panels must present 30-minute sampled state rather than pretending to be 15-minute or minute-resolution telemetry.
@@ -95,6 +104,7 @@ The product must provide a historical statistics page focused on token usage.
 Required outputs for the selected range:
 - total input tokens
 - total output tokens
+- token cache-hit ratio when archived `cacheRead` / `cacheWrite` counters are present
 - provider distribution
 - model distribution
 - channel distribution if the source data includes channel
@@ -103,6 +113,7 @@ Token aggregation rules:
 - use each day’s last archived record because counters reset daily
 - current-day totals use the latest archived record available for the current day
 - cross-day totals sum daily end-of-day values over the selected range
+- if cache counters are unavailable from the runtime/archive source, the UI must label cache-hit ratio as unavailable rather than substituting zero
 
 Recommended optional additions only if the underlying runtime/archive exposes them cleanly:
 - request or model error counts
@@ -138,7 +149,7 @@ This means:
 - typography and layout should feel precise and operational
 - panels should look intentional and modern without feeling like a sci-fi gimmick
 - the header should include reliable branded ClawObserver artwork using an OpenClaw-style lobster with a magnifying glass and an enlarged magnified eye
-- historical charts must render visible Y-axis labels and mouse-hover exact-value tooltips
+- historical charts must render visible Y-axis labels and shared mouse-hover tooltips that show every series value at the hovered X bucket
 
 ## 7. Non-goals
 
@@ -173,7 +184,7 @@ ClawObserver is acceptable when all of the following are true:
 4. Token statistics correctly aggregate daily-reset counters using daily last records.
 5. Gateway counts are present in the approved scope without inventing unsupported gateway metrics.
 6. Gateway exit counts are available in both realtime and archive-backed views, with any journal/log heuristic documented honestly.
-7. Historical charts show visible Y-axis numeric labels and mouse-hover exact-value tooltips.
+7. Historical charts show visible Y-axis numeric labels and shared mouse-hover tooltips that reveal every series value at the hovered X bucket.
 8. The UI follows the approved deep-tech minimal style direction, including branded ClawObserver header artwork.
 9. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
 10. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
@@ -183,7 +194,7 @@ ClawObserver is acceptable when all of the following are true:
 These should be resolved conservatively during implementation:
 
 1. What exact OpenClaw runtime command/API is the canonical live source for gateway state counts?
-2. Which queue lanes are guaranteed stable enough to expose as first-class series labels?
+2. Will a future OpenClaw runtime/CLI surface expose structured per-lane queue depth so ClawObserver can retire the truthful queued-system-events fallback where lane data is not currently public?
 3. Does channel always exist for token accounting, or must the UI gracefully omit that breakdown?
 4. Are gateway historical error/start counts available from the runtime, or should they stay optional and hidden by default?
 5. Should OpenClaw expose a first-class gateway exits-today counter so ClawObserver can retire the journal heuristic where it is currently needed?
