@@ -60,6 +60,19 @@ Why SQLite:
 
 A companion JSON export may be added later for portability, but SQLite is the primary design target.
 
+### 3.3 Deployment shape
+
+The first public deployment path remains deliberately simple:
+
+- operator checks out the repository on the target host
+- operator runs a single deployment script from the repo
+- the script renders user-level `systemd` units and an env file into the operator's home directory
+- the web service runs with `/usr/bin/env python3 -m clawobserver serve`
+- archive capture runs with `/usr/bin/env python3 -m clawobserver capture`
+- the default bind remains `127.0.0.1`
+
+The deployment script is the primary operator entrypoint, but it is only a thin wrapper around the existing host-native Python plus user-level `systemd` model, not a new packaging system.
+
 ## 4. Data model
 
 The schema should be minimal and aligned to the approved scope.
@@ -261,13 +274,30 @@ Avoid:
 - emphasize legends and labels over visual effects
 - use consistent color mapping per agent/lane/state wherever possible
 
-## 8. Failure and degraded behavior
+## 8. Operator documentation expectations
+
+The public repository documentation should function as an operator manual rather than a sparse developer note.
+
+Minimum README coverage:
+
+1. what ClawObserver is and is not
+2. high-level architecture and data-path split
+3. prerequisites
+4. quick start from the repo checkout
+5. deployment through the repo script
+6. installed unit names and service-management commands
+7. loopback default access behavior and how to override it intentionally
+8. runtime adapter precedence and fallback behavior
+9. archive cadence and daily-last-record semantics
+10. troubleshooting focused on the local host-native install path
+
+## 9. Failure and degraded behavior
 
 1. If live runtime access fails, realtime panels show explicit degraded-state messaging rather than stale values disguised as current.
 2. If archive data is missing for a day, charts show a gap rather than synthetic interpolation.
 3. If token channel data is absent, the UI hides that breakdown cleanly rather than inventing an `unknown` distribution unless the source explicitly emits it.
 
-## 9. Implementation sequencing
+## 10. Implementation sequencing
 
 Recommended build order:
 1. live collector contract
@@ -277,7 +307,7 @@ Recommended build order:
 5. token statistics page
 6. optional gateway/request error daily extras
 
-## 10. Open questions
+## 11. Open questions
 
 1. Which exact OpenClaw command/API should back the live collector contract for sessions, queues, and gateways?
 2. Is gateway state available as a direct runtime value or only as derived counts?

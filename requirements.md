@@ -146,7 +146,18 @@ Explicit non-goals:
 - synthetic metrics not present in the approved monitoring scope, unless explicitly labeled as optional additions
 - model routing or fallback-model features; the agent environment remains GPT-5.4 only
 
-## 8. Acceptance criteria
+## 8. Deployment and publication requirements
+
+The public repository and deployment story must stay aligned with the lightweight host-native model.
+
+Required expectations:
+
+1. The repository must ship a single operator-facing deployment script as the primary documented deployment entrypoint.
+2. The deployment model must remain host-native Python plus user-level `systemd`; no extra service stack should be introduced.
+3. The default bind address must remain `127.0.0.1` unless the operator explicitly overrides it in configuration.
+4. The repository README must be suitable as an operator manual and must explain prerequisites, quick start, deployment, service management, runtime adapter behavior, archive cadence semantics, and troubleshooting.
+
+## 9. Acceptance criteria
 
 ClawObserver is acceptable when all of the following are true:
 
@@ -157,8 +168,9 @@ ClawObserver is acceptable when all of the following are true:
 5. Gateway counts are present in the approved scope without inventing unsupported gateway metrics.
 6. The UI follows the approved deep-tech minimal style direction.
 7. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
+8. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
 
-## 9. Open questions
+## 10. Open questions
 
 These should be resolved conservatively during implementation:
 
