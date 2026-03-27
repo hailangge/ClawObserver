@@ -57,8 +57,11 @@ The product must provide a realtime overview page containing at minimum:
    - active sessions
    - derived idle sessions
 5. **Queue / backlog state**
-   - if OpenClaw exposes structured per-lane queue depth safely, use it
-   - if public runtime data only exposes session-level backlog such as queued system events, the UI must present that honest session-level backlog instead of inventing lane depth
+   - ClawObserver must prefer the real OpenClaw delivery queue on disk when it is available
+   - at minimum the product must expose truthful `delivery_queue_pending` and `delivery_queue_failed` depths from `~/.openclaw/delivery-queue/` and `~/.openclaw/delivery-queue/failed/`
+   - if the on-disk queue later exposes trustworthy finer-grained queue lanes, the product may surface them
+   - if the delivery-queue path is unavailable and OpenClaw exposes structured runtime queue depth safely, the UI may fall back to that runtime queue data
+   - if only a coarse public runtime backlog such as queued system events is available, the UI must present that honest backlog instead of inventing lane depth
 6. **Gateway counts**
    - must include total currently known gateways
    - if runtime exposes gateway state safely, may also show per-state counts such as online/offline
@@ -80,8 +83,9 @@ Required historical panels:
 3. **Session State**
 4. **Agent Activity Statistics**
 5. **Queue / Backlog State**
-   - use lane depth only when the live/archive source actually exposes lane depth
-   - otherwise show the truthful backlog metric that is available, such as queued system events
+   - archive the real delivery-queue depth from disk when available, at minimum as pending and failed item counts
+   - use finer-grained lane depth only when the live/archive source actually exposes it truthfully
+   - otherwise show the truthful backlog metric that is available instead of inventing queue lanes
 6. **Session Type Comparison**
    - compare Persistent vs One-Shot session totals
    - a right-side pie chart for the latest archived point is acceptable
@@ -194,7 +198,7 @@ ClawObserver is acceptable when all of the following are true:
 These should be resolved conservatively during implementation:
 
 1. What exact OpenClaw runtime command/API is the canonical live source for gateway state counts?
-2. Will a future OpenClaw runtime/CLI surface expose structured per-lane queue depth so ClawObserver can retire the truthful queued-system-events fallback where lane data is not currently public?
+2. Will a future OpenClaw delivery-queue format or runtime/CLI surface expose trustworthy finer-grained queue lanes beyond the currently validated pending/failed on-disk queue counts?
 3. Does channel always exist for token accounting, or must the UI gracefully omit that breakdown?
 4. Are gateway historical error/start counts available from the runtime, or should they stay optional and hidden by default?
 5. Should OpenClaw expose a first-class gateway exits-today counter so ClawObserver can retire the journal heuristic where it is currently needed?

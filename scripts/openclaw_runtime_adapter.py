@@ -13,6 +13,8 @@ from typing import Any
 ACTIVE_WINDOW_MS = 2 * 60 * 60 * 1000
 SESSION_TYPE_PERSISTENT = "persistent"
 SESSION_TYPE_ONE_SHOT = "one_shot"
+DELIVERY_QUEUE_PENDING = "delivery_queue_pending"
+DELIVERY_QUEUE_FAILED = "delivery_queue_failed"
 
 
 def resolve_openclaw_bin() -> str:
@@ -49,6 +51,13 @@ def run_optional_capture(cmd: list[str]) -> str | None:
         return run_capture(cmd)
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
+
+
+def resolve_delivery_queue_dir() -> Path:
+    configured = os.getenv("OPENCLAW_DELIVERY_QUEUE_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".openclaw" / "delivery-queue"
 
 
 def _to_int(value: Any, default: int = 0) -> int:
@@ -202,7 +211,14 @@ def derive_gateway_exit_count(gateway_status: dict[str, Any]) -> tuple[int, str]
     return 0, "unavailable"
 
 
-def extract_queue_rows(gateway_call_status: dict[str, Any]) -> list[dict[str, Any]]:
+def extract_queue_rows(
+    gateway_call_status: dict[str, Any],
+    delivery_queue_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    delivery_queue_rows = extract_delivery_queue_rows(delivery_queue_dir)
+    if delivery_queue_rows:
+        return delivery_queue_rows
+
     for key in ("queueDepthByLane", "queue_depth_by_lane", "lanes", "queues"):
         candidate = gateway_call_status.get(key)
         rows = _coerce_queue_rows(candidate)
@@ -214,6 +230,48 @@ def extract_queue_rows(gateway_call_status: dict[str, Any]) -> list[dict[str, An
         return [{"lane_name": "queued_system_events", "depth": len(queued_system_events)}]
 
     return []
+
+
+def extract_delivery_queue_rows(
+    delivery_queue_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    queue_dir = delivery_queue_dir or resolve_delivery_queue_dir()
+    failed_dir = queue_dir / "failed"
+
+    pending_depth = _count_delivery_queue_items(queue_dir)
+    failed_depth = _count_delivery_queue_items(failed_dir)
+    if pending_depth is None or failed_depth is None:
+        return []
+
+    if not queue_dir.exists() and not failed_dir.exists():
+        return []
+
+    return [
+        {
+            "lane_name": DELIVERY_QUEUE_PENDING,
+            "depth": pending_depth,
+        },
+        {
+            "lane_name": DELIVERY_QUEUE_FAILED,
+            "depth": failed_depth,
+        },
+    ]
+
+
+def _count_delivery_queue_items(directory: Path) -> int | None:
+    try:
+        if not directory.exists():
+            return 0
+        if not directory.is_dir():
+            return None
+
+        count = 0
+        for entry in directory.iterdir():
+            if entry.is_file() and entry.suffix.lower() == ".json":
+                count += 1
+        return count
+    except OSError:
+        return None
 
 
 def _coerce_queue_rows(candidate: Any) -> list[dict[str, Any]]:
@@ -261,6 +319,7 @@ def build_payload_from_sources(
     gateway_status: dict[str, Any],
     now: datetime,
     store_entries: dict[str, dict[str, Any]],
+    delivery_queue_dir: Path | None = None,
 ) -> dict[str, Any]:
     sessions = sessions_obj.get("sessions", [])
     recent_sessions = {
@@ -400,7 +459,10 @@ def build_payload_from_sources(
                 )
             ],
         },
-        "queues": extract_queue_rows(gateway_call_status),
+        "queues": extract_queue_rows(
+            gateway_call_status,
+            delivery_queue_dir=delivery_queue_dir,
+        ),
         "gateways": {
             "total": 1 if gateway_running else 0,
             "exits_today": gateway_exit_count,

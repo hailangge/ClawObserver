@@ -183,13 +183,15 @@ The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI
 
 - runs `openclaw sessions --all-agents --json`
 - runs `openclaw gateway call status --json`
+- reads the real OpenClaw delivery queue from `~/.openclaw/delivery-queue/` and `~/.openclaw/delivery-queue/failed/`
 - derives active versus idle sessions from `ageMs`
 - aggregates per-agent totals and token counters
 - classifies Persistent vs One-Shot sessions conservatively from stable session-key conventions when the public session rows do not expose a first-class mode field
 - reads the OpenClaw session-store files referenced by the CLI output so archived token statistics can include `cacheRead` / `cacheWrite` counters when they are available
 - runs `openclaw gateway status --json`
 - reports gateway totals conservatively as available/not available rather than inventing extra metrics
-- prefers structured per-lane queue depth when OpenClaw exposes it and otherwise falls back to the public `queuedSystemEvents` backlog count instead of inventing a lane
+- reports delivery queue depth from the on-disk queue as `delivery_queue_pending` and `delivery_queue_failed`
+- falls back to structured runtime queue lanes or the public `queuedSystemEvents` backlog only when the delivery-queue path is unavailable
 - emits `gateways.exits_today` when it can do so conservatively
   - if OpenClaw exposes a structured exits-today value in gateway status output, the adapter uses that directly
   - otherwise, on Linux hosts using the OpenClaw user-level `systemd` gateway unit, the adapter counts today’s `Main process exited` journal events for `openclaw-gateway.service`
@@ -198,11 +200,14 @@ The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI
 
 Current adapter limitations are intentional:
 
-- OpenClaw's current public CLI/runtime status output does not appear to expose the internal per-lane queue sizes that exist inside OpenClaw itself, so the bundled adapter archives the public session-level `queuedSystemEvents` backlog when true lane data is not published
+- the validated queue model currently comes from the on-disk delivery queue layout rather than a first-class runtime queue API; the bundled adapter counts JSON queue items in the queue root as pending and in `failed/` as failed
+- the delivery queue files currently expose message metadata such as channel and retry details, but they do not clearly expose trustworthy internal queue lanes beyond pending versus failed
 - session-type totals are conservative and documented: the bundled adapter uses stable session-key conventions such as `:subagent:` and `:run:` to identify One-Shot sessions because the current public session rows do not publish a direct mode field for all sessions
 - gateway history remains limited to count snapshots, including the archived `exits_today` sample when available
 - cache-hit ratio is shown only when the runtime/archive source includes cache counters; custom adapters that omit those counters will surface the ratio as unavailable
 - if the adapter command fails, live requests and archive capture requests will fail until the configured runtime source is corrected
+
+If your OpenClaw host keeps the delivery queue in a non-default location, set `OPENCLAW_DELIVERY_QUEUE_DIR` for the bundled adapter.
 
 If you provide your own runtime command instead of the bundled adapter, emit the gateway reliability metric as `gateways.exits_today` in the normalized payload so it appears in both realtime and historical views.
 

@@ -88,7 +88,8 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
         self.assertIn("exits_today", payload["gateways"])
         self.assertGreaterEqual(payload["gateways"]["exits_today"], 0)
         self.assertIn("by_type", payload["sessions"])
-        self.assertEqual(payload["queues"][0]["lane_name"], "queued_system_events")
+        self.assertEqual(payload["queues"][0]["lane_name"], "delivery_queue_pending")
+        self.assertEqual(payload["queues"][1]["lane_name"], "delivery_queue_failed")
         self.assertIn("cache_read_tokens", payload["tokens"][0])
 
 

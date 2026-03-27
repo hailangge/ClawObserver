@@ -37,6 +37,7 @@ This split is mandatory because the audited historical panels originated from Si
 1. **Live collector adapter**
    - reads OpenClaw runtime/CLI/API state on demand
    - normalizes active sessions, per-agent session counts, session-type totals, truthful queue/backlog state, gateway counts, and the conservative gateway exits-today metric
+   - for queue depth, prefers the real OpenClaw delivery queue on disk and records pending versus failed item counts when that path is available
 
 2. **Archive snapshot job**
    - runs roughly every 30 minutes
@@ -134,8 +135,9 @@ Purpose:
 
 Purpose:
 - supports truthful queue/backlog history
-- stores real lane depth if OpenClaw exposes it
-- otherwise stores the best public runtime backlog metric available, such as queued system events
+- stores truthful delivery-queue depth from disk, at minimum `delivery_queue_pending` and `delivery_queue_failed`
+- may store real finer-grained lane depth only if OpenClaw later exposes it truthfully
+- otherwise stores the best public runtime backlog metric available as an explicit fallback
 
 ### 4.6 Session type samples
 
@@ -221,7 +223,8 @@ Sections:
    - derived idle sessions
    - gateway count
 2. per-agent active-session distribution
-3. queue depth by lane
+3. delivery queue depth
+   - current validated semantics are delivery-queue pending and failed item counts from the on-disk queue
 4. compact agent/session table
 5. gateway exit count card and gateway reliability breakdown
 
@@ -237,7 +240,8 @@ Sections:
 3. Active Sessions by Agent
 4. Session State
 5. Agent Activity Statistics
-6. Queue / Backlog State
+6. Delivery Queue Depth
+   - current validated semantics are the on-disk delivery queue pending/failed counts rather than generic synthetic lane names
 7. Agent Session Count
 8. Gateway Reliability
 9. Token Throughput by Model / Provider / Channel

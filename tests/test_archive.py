@@ -112,6 +112,25 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
             ],
         )
 
+    def test_history_preserves_delivery_queue_depths(self) -> None:
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-27T08:00:00+00:00",
+                active_sessions=8,
+                pending_queue_depth=4,
+                failed_queue_depth=1,
+            )
+        )
+
+        payload = self.store.history_payload("current_day")
+
+        queue_counts = {
+            item["lane_name"]: item["depth"]
+            for item in payload["points"][0]["queue_lanes"]
+        }
+        self.assertEqual(queue_counts["delivery_queue_pending"], 4)
+        self.assertEqual(queue_counts["delivery_queue_failed"], 1)
+
     def test_token_statistics_sum_latest_daily_counters(self) -> None:
         self.store.insert_snapshot(
             self._snapshot(
@@ -198,6 +217,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         gateway_exit_count: int = 0,
         persistent_sessions: int | None = None,
         one_shot_sessions: int | None = None,
+        pending_queue_depth: int = 2,
+        failed_queue_depth: int = 0,
     ) -> RuntimeSnapshot:
         captured_at = datetime.fromisoformat(iso_timestamp)
         persistent_total = (
@@ -228,7 +249,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 SessionTypeSample("one_shot", one_shot_total),
             ],
             queue_lanes=[
-                QueueLaneSample("queued_system_events", 2),
+                QueueLaneSample("delivery_queue_pending", pending_queue_depth),
+                QueueLaneSample("delivery_queue_failed", failed_queue_depth),
             ],
             gateways=[
                 GatewaySample("total", 3),

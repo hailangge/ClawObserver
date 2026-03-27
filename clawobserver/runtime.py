@@ -124,7 +124,8 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
             ],
         },
         "queues": [
-            {"lane_name": "queued_system_events", "depth": 3 + minute_index % 5},
+            {"lane_name": "delivery_queue_pending", "depth": 3 + minute_index % 5},
+            {"lane_name": "delivery_queue_failed", "depth": minute_index % 3},
         ],
         "gateways": {
             "total": 8,

@@ -28,6 +28,7 @@
 - [x] Update manual/spec docs for the new historical UX and queue semantics
 - [x] Run validation for the optimization pass
 - [x] Commit the optimization pass
+- [x] Recalibrate queue depth against the real OpenClaw delivery queue source
 
 ## Notes
 - Current status: the optimization-pass implementation is complete, validated locally, and committed in-repo. Push/restart steps remain separate follow-up work.
@@ -43,7 +44,8 @@
 - Live runtime state and archive-backed history must remain separate paths.
 - Gateway reliability history remains conservative: `exits_today` is archived as a count snapshot, and the bundled adapter uses structured runtime data when available or a documented `systemd` journal exit-event heuristic otherwise.
 - After restarting the user service and triggering a fresh archive capture on 2026-03-27, `exits_today` was observed in realtime payloads immediately and in the latest historical archive point once a new snapshot had been captured.
-- Queue semantics are now explicit: OpenClaw's current public CLI/runtime data did not expose the internal per-lane queue sizes during investigation on 2026-03-27, so the bundled adapter records structured lane depth only if it appears and otherwise archives the truthful `queuedSystemEvents` backlog count instead of a fake default lane.
+- Queue semantics were recalibrated again on 2026-03-27 against the real OpenClaw delivery queue on disk. The validated truthful model is `delivery_queue_pending` from `~/.openclaw/delivery-queue/*.json` plus `delivery_queue_failed` from `~/.openclaw/delivery-queue/failed/*.json`. The inspected file contents exposed message metadata such as `channel`, `retryCount`, and `lastError`, but they did not expose trustworthy internal queue lanes beyond pending versus failed.
+- Verified the recalibration locally on 2026-03-27 by inspecting the real host queue directories and sample queue files, then running `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver scripts/openclaw_runtime_adapter.py`, `node --check clawobserver/static/app.js`, and `python3 scripts/openclaw_runtime_adapter.py`. The adapter now emits delivery-queue pending/failed counts from disk when available and those values flow through live and archived history payloads unchanged.
 - Session-type comparison is archived via conservative Persistent vs One-Shot classification from stable OpenClaw session-key conventions because the current public session rows did not publish a first-class mode field for all sessions during the 2026-03-27 investigation.
 - Token cache-hit ratio is now included when archived `cacheRead` / `cacheWrite` counters are present; if a runtime source omits those counters, the UI surfaces the ratio as unavailable rather than zero.
 - Current-day token rollups now ignore sessions whose latest known update timestamp is not from the selected day, which keeps stale legacy models like `gpt-5.3-codex` from polluting today’s approximate token view.

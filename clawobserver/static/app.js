@@ -113,8 +113,8 @@ function renderRealtime(payload) {
       <section class="panel">
         <div class="panel-header">
           <div>
-            <h2>Queue / Backlog State</h2>
-            <p class="panel-subtitle">The bundled OpenClaw adapter prefers structured per-lane queue data when available. Current public CLI/runtime data otherwise falls back to session-level queued system events instead of a fake lane depth.</p>
+            <h2>Delivery Queue Depth</h2>
+            <p class="panel-subtitle">The bundled OpenClaw adapter reads the real OpenClaw delivery queue on disk and reports pending versus failed queue-item counts. Runtime queue lanes are only used as a fallback when that delivery queue path is unavailable.</p>
           </div>
           <p class="meta-line">Live runtime</p>
         </div>
@@ -211,7 +211,7 @@ function renderHistorical(payload) {
       ${panelChart("Gateway Reliability", "Gateway exit counts are archived with each snapshot. Exit totals prefer structured runtime data and otherwise use a conservative systemd journal heuristic.", seriesObjectToList(gatewaySeries, formatGatewayGroupLabel))}
       ${panelChart("Active Sessions by Agent", "Separate series remain separate objects rather than flattened aggregates.", seriesObjectToList(agentActiveSeries))}
       ${panelChart("Session State", "Historical state counts from archived samples.", seriesObjectToList(sessionStateSeries))}
-      ${panelChart("Queue / Backlog State", "Structured per-lane depth is used when OpenClaw exposes it. Otherwise the bundled adapter archives session-level queued system events so the panel stays truthful.", seriesObjectToList(queueSeries, formatQueueLabel))}
+      ${panelChart("Delivery Queue Depth", "Archived queue depth reflects the real OpenClaw delivery queue on disk as pending versus failed items. Runtime lane data is only used as a fallback when that queue path is unavailable.", seriesObjectToList(queueSeries, formatQueueLabel))}
       ${panelChart("Agent Session Count", "Per-agent total session counts.", seriesObjectToList(agentTotalSeries))}
       ${panelChart("Token Throughput by Model", "Historical token counters within approved scope.", seriesObjectToList(tokenModelSeries))}
     </section>
@@ -706,6 +706,8 @@ function formatGatewayGroupLabel(value) {
 
 function formatQueueLabel(value) {
   return {
+    delivery_queue_pending: "Pending delivery items",
+    delivery_queue_failed: "Failed delivery items",
     queued_system_events: "Queued system events",
   }[value] || String(value).replaceAll("_", " ");
 }
