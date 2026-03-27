@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+
+from clawobserver.archive import ArchiveStore
+from clawobserver.config import AppConfig
+from clawobserver.models import (
+    AgentSessionSample,
+    GatewaySample,
+    QueueLaneSample,
+    RuntimeSnapshot,
+    SessionOverview,
+    SessionStateSample,
+    TokenCounterSample,
+)
+
+
+class ArchiveQuerySemanticsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        base_dir = Path(self.temp_dir.name)
+        self.config = AppConfig(
+            base_dir=base_dir,
+            data_dir=base_dir,
+            database_path=base_dir / "archive.sqlite3",
+            runtime_json_path=None,
+            runtime_command=None,
+            host="127.0.0.1",
+            port=8420,
+            refresh_seconds=15,
+            archive_cadence_minutes=30,
+        )
+        self.store = ArchiveStore(self.config)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_multi_day_history_uses_last_record_per_day(self) -> None:
+        self.store.insert_snapshot(self._snapshot("2026-03-25T08:00:00+00:00", active_sessions=8))
+        self.store.insert_snapshot(self._snapshot("2026-03-25T23:30:00+00:00", active_sessions=10))
+        self.store.insert_snapshot(self._snapshot("2026-03-26T10:00:00+00:00", active_sessions=12))
+        self.store.insert_snapshot(self._snapshot("2026-03-26T23:30:00+00:00", active_sessions=16))
+
+        payload = self.store.history_payload("last_7_days")
+
+        self.assertEqual(payload["mode"], "daily_last_record_summary")
+        self.assertEqual(len(payload["points"]), 2)
+        self.assertEqual(payload["points"][0]["session_overview"]["active_sessions"], 10)
+        self.assertEqual(payload["points"][1]["session_overview"]["active_sessions"], 16)
+
+    def test_current_day_history_returns_all_archived_points(self) -> None:
+        self.store.insert_snapshot(self._snapshot("2026-03-27T08:00:00+00:00", active_sessions=8))
+        self.store.insert_snapshot(self._snapshot("2026-03-27T12:00:00+00:00", active_sessions=10))
+        self.store.insert_snapshot(self._snapshot("2026-03-27T18:00:00+00:00", active_sessions=12))
+
+        payload = self.store.history_payload("current_day")
+
+        self.assertEqual(payload["mode"], "intra_day_sampled")
+        self.assertEqual(len(payload["points"]), 3)
+        self.assertEqual(payload["points"][0]["session_overview"]["active_sessions"], 8)
+        self.assertEqual(payload["points"][-1]["session_overview"]["active_sessions"], 12)
+
+    def test_token_statistics_sum_latest_daily_counters(self) -> None:
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-25T09:00:00+00:00",
+                active_sessions=8,
+                token_input=100,
+                token_output=40,
+            )
+        )
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-25T23:30:00+00:00",
+                active_sessions=9,
+                token_input=160,
+                token_output=60,
+            )
+        )
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-26T23:30:00+00:00",
+                active_sessions=10,
+                token_input=200,
+                token_output=90,
+            )
+        )
+
+        payload = self.store.token_statistics_payload("last_7_days")
+
+        self.assertEqual(payload["total_input_tokens"], 360)
+        self.assertEqual(payload["total_output_tokens"], 150)
+        self.assertEqual(len(payload["daily_records"]), 2)
+        self.assertTrue(payload["has_channel_data"])
+
+    def test_current_day_token_statistics_use_latest_snapshot_only(self) -> None:
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-27T08:00:00+00:00",
+                active_sessions=8,
+                token_input=100,
+                token_output=40,
+            )
+        )
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-27T23:30:00+00:00",
+                active_sessions=10,
+                token_input=180,
+                token_output=75,
+            )
+        )
+
+        payload = self.store.token_statistics_payload("current_day")
+
+        self.assertEqual(payload["total_input_tokens"], 180)
+        self.assertEqual(payload["total_output_tokens"], 75)
+        self.assertEqual(len(payload["daily_records"]), 1)
+
+    def _snapshot(
+        self,
+        iso_timestamp: str,
+        *,
+        active_sessions: int,
+        token_input: int = 120,
+        token_output: int = 55,
+    ) -> RuntimeSnapshot:
+        captured_at = datetime.fromisoformat(iso_timestamp)
+        return RuntimeSnapshot(
+            captured_at=captured_at,
+            capture_date=captured_at.date().isoformat(),
+            source_version="test",
+            capture_status="ok",
+            session_overview=SessionOverview(
+                total_sessions=active_sessions + 5,
+                active_sessions=active_sessions,
+                idle_sessions=5,
+            ),
+            agent_sessions=[
+                AgentSessionSample("planner", active_sessions, active_sessions + 3),
+            ],
+            session_states=[
+                SessionStateSample("active", active_sessions),
+                SessionStateSample("idle", 5),
+            ],
+            queue_lanes=[
+                QueueLaneSample("dispatch", 2),
+            ],
+            gateways=[
+                GatewaySample("total", 3),
+                GatewaySample("online", 3),
+            ],
+            token_counters=[
+                TokenCounterSample(
+                    day_key=captured_at.date().isoformat(),
+                    provider="openai",
+                    model="gpt-5.4",
+                    channel="default",
+                    input_tokens=token_input,
+                    output_tokens=token_output,
+                )
+            ],
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ClawObserver</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">OpenClaw monitoring</p>
+          <h1>ClawObserver</h1>
+        </div>
+        <div class="topbar-actions">
+          <button id="capture-button" class="button subtle">Capture archive snapshot</button>
+          <span id="status-pill" class="status-pill">Loading</span>
+        </div>
+      </header>
+
+      <section class="controls">
+        <nav class="nav-tabs">
+          <button class="tab active" data-page="realtime">Realtime</button>
+          <button class="tab" data-page="historical">Historical</button>
+          <button class="tab" data-page="tokens">Token Stats</button>
+        </nav>
+        <div class="range-selector">
+          <button class="range-button active" data-range="current_day">Current Day</button>
+          <button class="range-button" data-range="last_7_days">Last 7 Days</button>
+          <button class="range-button" data-range="last_30_days">Last 30 Days</button>
+          <button class="range-button" data-range="last_90_days">Last 90 Days</button>
+        </div>
+      </section>
+
+      <main id="page-root" class="page-root"></main>
+    </div>
+
+    <template id="empty-state-template">
+      <section class="panel empty-state">
+        <h2>No archive data yet</h2>
+        <p>
+          Capture a snapshot now or run <code>python3 -m clawobserver seed-demo</code> to populate
+          archive-backed history for validation.
+        </p>
+      </section>
+    </template>
+
+    <script src="/assets/app.js" defer></script>
+  </body>
+  </html>
+
