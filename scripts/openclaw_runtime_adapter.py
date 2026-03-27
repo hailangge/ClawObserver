@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from collections import defaultdict
@@ -37,6 +38,70 @@ def extract_first_json(text: str) -> Any:
     raise RuntimeError("No JSON payload found in command output")
 
 
+def run_optional_capture(cmd: list[str]) -> str | None:
+    try:
+        return run_capture(cmd)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+
+
+def derive_systemd_unit_name(gateway_status: dict[str, Any]) -> str | None:
+    source_path = (
+        gateway_status.get("service", {})
+        .get("command", {})
+        .get("sourcePath")
+    )
+    if isinstance(source_path, str) and source_path.endswith(".service"):
+        return Path(source_path).name
+    configured = os.getenv("OPENCLAW_GATEWAY_SYSTEMD_UNIT")
+    if configured:
+        return configured
+    return "openclaw-gateway.service"
+
+
+def derive_gateway_exit_count(gateway_status: dict[str, Any]) -> tuple[int, str]:
+    runtime = gateway_status.get("service", {}).get("runtime", {})
+    for key in ("exitCountToday", "exitsToday", "todayExitCount"):
+        value = runtime.get(key)
+        if isinstance(value, (int, float, str)):
+            try:
+                return max(int(value), 0), "runtime-structured"
+            except ValueError:
+                continue
+
+    if gateway_status.get("service", {}).get("label") == "systemd":
+        unit_name = derive_systemd_unit_name(gateway_status)
+        journal_output = run_optional_capture(
+            [
+                "journalctl",
+                "--user",
+                "-u",
+                unit_name,
+                "--since",
+                "today",
+                "--output",
+                "json",
+                "--no-pager",
+            ]
+        )
+        if journal_output is not None:
+            exit_events = 0
+            for line in journal_output.splitlines():
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                message = str(entry.get("MESSAGE", ""))
+                if "Main process exited" in message:
+                    exit_events += 1
+            return exit_events, "systemd-journal-heuristic"
+
+    return 0, "unavailable"
+
+
 def build_payload() -> dict[str, Any]:
     openclaw_bin = resolve_openclaw_bin()
     sessions_obj = extract_first_json(run_capture([openclaw_bin, "sessions", "--all-agents", "--json"]))
@@ -67,8 +132,10 @@ def build_payload() -> dict[str, Any]:
         provider_model_channel[(provider, model, channel)]["input"] += int(session.get("inputTokens") or 0)
         provider_model_channel[(provider, model, channel)]["output"] += int(session.get("outputTokens") or 0)
 
-    gateway_status = run_capture([openclaw_bin, "gateway", "status"])
-    gateway_running = "Runtime: running" in gateway_status
+    gateway_status = extract_first_json(run_capture([openclaw_bin, "gateway", "status", "--json"]))
+    gateway_runtime = gateway_status.get("service", {}).get("runtime", {})
+    gateway_running = gateway_runtime.get("status") == "running"
+    gateway_exit_count, gateway_exit_source = derive_gateway_exit_count(gateway_status)
 
     day_key = now.date().isoformat()
     token_rows = []
@@ -107,11 +174,13 @@ def build_payload() -> dict[str, Any]:
         "queues": [{"lane_name": "default", "depth": 0}],
         "gateways": {
             "total": 1 if gateway_running else 0,
+            "exits_today": gateway_exit_count,
             "states": {
                 "online": 1 if gateway_running else 0,
                 "offline": 0 if gateway_running else 1,
             },
         },
+        "gateway_exit_count_source": gateway_exit_source,
         "tokens": token_rows,
     }
 

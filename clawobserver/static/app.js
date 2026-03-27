@@ -88,6 +88,7 @@ function renderRealtime(payload) {
   setStatus(`Live · ${formatDateTime(payload.captured_at)}`);
   const root = document.getElementById("page-root");
   const totalGatewayCount = lookupGatewayCount(payload.gateways, "total");
+  const gatewayExitCount = findGatewayCount(payload.gateways, "exits_today");
   const activeAgents = payload.agent_sessions.filter((item) => item.active_sessions > 0);
 
   root.innerHTML = `
@@ -96,6 +97,7 @@ function renderRealtime(payload) {
       ${metricCard("Total sessions", payload.session_overview.total_sessions, "Live runtime state")}
       ${metricCard("Idle sessions", payload.session_overview.idle_sessions, "Derived from total-active")}
       ${metricCard("Gateways", totalGatewayCount, "Current known total")}
+      ${metricCard("Gateway exits today", gatewayExitCount ?? "Unavailable", "Structured runtime value when available, otherwise a systemd journal exit-event count")}
     </section>
     <section class="panel-grid">
       <section class="panel">
@@ -133,10 +135,10 @@ function renderRealtime(payload) {
         <div class="panel-header">
           <div>
             <h2>Gateway Counts</h2>
-            <p class="panel-subtitle">Total count is always included. Per-state counts appear when the runtime exposes them safely.</p>
+            <p class="panel-subtitle">Total count is always included. Today’s exit count prefers structured runtime data and otherwise uses a conservative systemd journal heuristic.</p>
           </div>
         </div>
-        ${renderKeyValueList(payload.gateways, "gateway_group", "gateway_count")}
+        ${renderKeyValueList(payload.gateways, "gateway_group", "gateway_count", formatGatewayGroupLabel)}
       </section>
     </section>
     <section class="panel">
@@ -184,6 +186,7 @@ function renderHistorical(payload) {
   const tokenModelSeries = collapseTokenSeries(payload.points, "model", payload.mode);
   const tokenProviderSeries = collapseTokenSeries(payload.points, "provider", payload.mode);
   const tokenChannelSeries = collapseTokenSeries(payload.points, "channel", payload.mode, true);
+  const latestPoint = payload.points[payload.points.length - 1];
 
   root.innerHTML = `
     <section class="metric-grid">
@@ -191,6 +194,7 @@ function renderHistorical(payload) {
       ${metricCard("Archived points", payload.points.length, displayRange(state.range))}
       ${metricCard("Latest active sessions", activeSeries[activeSeries.length - 1].y, "Selected archive record")}
       ${metricCard("Latest gateways", latestSeriesValue(gatewaySeries.total), "Selected archive record")}
+      ${metricCard("Gateway exits today", gatewaySeries.exits_today ? latestSeriesValue(gatewaySeries.exits_today) : "Unavailable", "Captured from the live source at each archive snapshot")}
     </section>
     <section class="chart-grid">
       ${panelChart("Active Sessions", "30-minute sampled state for current day, daily last-record summary beyond one day.", [
@@ -200,6 +204,7 @@ function renderHistorical(payload) {
         { name: "Total", values: totalSeries },
         { name: "Idle", values: idleSeries },
       ])}
+      ${panelChart("Gateway Reliability", "Gateway exit counts are archived with each snapshot. Exit totals prefer structured runtime data and otherwise use a conservative systemd journal heuristic.", seriesObjectToList(gatewaySeries, formatGatewayGroupLabel))}
       ${panelChart("Active Sessions by Agent", "Separate series remain separate objects rather than flattened aggregates.", seriesObjectToList(agentActiveSeries))}
       ${panelChart("Session State", "Historical state counts from archived samples.", seriesObjectToList(sessionStateSeries))}
       ${panelChart("Queue Depth by Lane", "Per-lane queue depth from archived snapshots.", seriesObjectToList(queueSeries))}
@@ -215,7 +220,7 @@ function renderHistorical(payload) {
             <p class="panel-subtitle">Latest archived agent totals for the selected range.</p>
           </div>
         </div>
-        ${renderTable(latestEntries(payload.points[payload.points.length - 1].agent_sessions, "agent_name"), [
+        ${renderTable(latestEntries(latestPoint.agent_sessions, "agent_name"), [
           { key: "agent_name", label: "Agent" },
           { key: "active_sessions", label: "Active", mono: true },
           { key: "total_sessions", label: "Total", mono: true },
@@ -225,11 +230,11 @@ function renderHistorical(payload) {
         <div class="panel-header">
           <div>
             <h2>Gateway Counts</h2>
-            <p class="panel-subtitle">Gateway counts stay limited to approved scope.</p>
+            <p class="panel-subtitle">Today’s exit count is retained in the archive so operators can compare gateway stability across sampled history.</p>
           </div>
         </div>
-        ${renderTable(latestEntries(payload.points[payload.points.length - 1].gateways, "gateway_group"), [
-          { key: "gateway_group", label: "Group" },
+        ${renderTable(latestEntries(latestPoint.gateways, "gateway_group"), [
+          { key: "gateway_group", label: "Group", format: formatGatewayGroupLabel },
           { key: "gateway_count", label: "Count", mono: true },
         ])}
       </section>
@@ -244,6 +249,7 @@ function renderHistorical(payload) {
       </section>
     </section>
   `;
+  bindChartTooltips(root);
 }
 
 function renderTokens(payload) {
@@ -316,7 +322,7 @@ function renderBarList(items, labelKey, valueKey, suffix) {
   `;
 }
 
-function renderKeyValueList(items, keyField, valueField) {
+function renderKeyValueList(items, keyField, valueField, labelFormatter = null) {
   if (!items.length) {
     return `<div class="chart-empty">No data</div>`;
   }
@@ -326,7 +332,7 @@ function renderKeyValueList(items, keyField, valueField) {
         .map(
           (item) => `
             <div class="bar-row">
-              <div>${item[keyField]}</div>
+              <div>${labelFormatter ? labelFormatter(item[keyField]) : item[keyField]}</div>
               <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
               <div class="mono">${formatNumber(item[valueField])}</div>
             </div>
@@ -379,40 +385,95 @@ function renderLineChart(seriesList) {
   if (!filtered.length) {
     return `<div class="chart-empty">No data</div>`;
   }
-  const width = 620;
-  const height = 240;
-  const inset = 28;
+  const width = 640;
+  const height = 280;
+  const inset = { top: 16, right: 18, bottom: 34, left: 56 };
   const allValues = filtered.flatMap((series) => series.values.map((value) => value.y));
-  const maxValue = Math.max(...allValues, 1);
-  const xCount = Math.max(filtered[0].values.length - 1, 1);
-  const yScale = (value) => height - inset - (value / maxValue) * (height - inset * 2);
-  const xScale = (index) => inset + (index / xCount) * (width - inset * 2);
+  const step = niceStep(Math.max(...allValues, 1) / 4);
+  const maxValue = Math.max(step * 4, Math.max(...allValues, 1));
+  const xLabels = collectOrderedLabels(filtered);
+  const xCount = Math.max(xLabels.length - 1, 1);
+  const plotWidth = width - inset.left - inset.right;
+  const plotHeight = height - inset.top - inset.bottom;
+  const xPositions = Object.fromEntries(
+    xLabels.map((label, index) => [
+      label,
+      inset.left + (index / xCount) * plotWidth,
+    ])
+  );
+  const yScale = (value) => height - inset.bottom - (value / maxValue) * plotHeight;
+  const xScale = (label) => xPositions[label] ?? inset.left;
+
+  const yTicks = [];
+  for (let value = 0; value <= maxValue; value += step) {
+    yTicks.push(value);
+  }
+
+  const grid = yTicks
+    .map((value) => {
+      const y = yScale(value);
+      return `
+        <line class="chart-grid-line" x1="${inset.left}" y1="${y}" x2="${width - inset.right}" y2="${y}" />
+        <text class="chart-grid-label" x="${inset.left - 8}" y="${y + 4}" text-anchor="end">${formatNumber(value)}</text>
+      `;
+    })
+    .join("");
 
   const polylines = filtered
     .map((series, index) => {
       const points = series.values
-        .map((item, pointIndex) => `${xScale(pointIndex)},${yScale(item.y)}`)
+        .map((item) => `${xScale(item.x)},${yScale(item.y)}`)
         .join(" ");
       return `<polyline fill="none" stroke="${palette[index % palette.length]}" stroke-width="2.5" points="${points}" />`;
     })
     .join("");
 
-  const labels = filtered[0].values
-    .map((item, index) => {
-      if (filtered[0].values.length > 8 && index % 2 === 1) {
+  const pointMarkers = filtered
+    .map((series, index) =>
+      series.values
+        .map((item) => {
+          const cx = xScale(item.x);
+          const cy = yScale(item.y);
+          const color = palette[index % palette.length];
+          return `
+            <circle class="chart-point" cx="${cx}" cy="${cy}" r="4.5" stroke="${color}" stroke-width="2.5" />
+            <circle
+              class="chart-point-target"
+              cx="${cx}"
+              cy="${cy}"
+              r="10"
+              fill="transparent"
+              data-series="${escapeAttribute(series.name)}"
+              data-label="${escapeAttribute(item.x)}"
+              data-value="${escapeAttribute(formatNumber(item.y))}"
+            />
+          `;
+        })
+        .join("")
+    )
+    .join("");
+
+  const labels = xLabels
+    .map((label, index) => {
+      if (xLabels.length > 8 && index % 2 === 1) {
         return "";
       }
-      return `<text x="${xScale(index)}" y="${height - 6}" text-anchor="middle" fill="#8fa0b5" font-size="11">${item.x}</text>`;
+      return `<text class="chart-axis-label" x="${xScale(label)}" y="${height - 8}" text-anchor="middle">${escapeHtml(label)}</text>`;
     })
     .join("");
 
   return `
-    <svg class="chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-      <line x1="${inset}" y1="${height - inset}" x2="${width - inset}" y2="${height - inset}" stroke="rgba(143,160,181,0.18)" />
-      <line x1="${inset}" y1="${inset}" x2="${inset}" y2="${height - inset}" stroke="rgba(143,160,181,0.18)" />
-      ${polylines}
-      ${labels}
-    </svg>
+    <div class="chart-shell">
+      <svg class="chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+        ${grid}
+        <line class="chart-axis-line" x1="${inset.left}" y1="${height - inset.bottom}" x2="${width - inset.right}" y2="${height - inset.bottom}" />
+        <line class="chart-axis-line" x1="${inset.left}" y1="${inset.top}" x2="${inset.left}" y2="${height - inset.bottom}" />
+        ${polylines}
+        ${pointMarkers}
+        ${labels}
+      </svg>
+      <div class="chart-tooltip" hidden></div>
+    </div>
     <div class="chart-legend">
       ${filtered
         .map(
@@ -478,8 +539,11 @@ function collapseTokenSeries(points, field, mode, ignoreEmpty = false) {
   return result;
 }
 
-function seriesObjectToList(seriesObject) {
-  return Object.entries(seriesObject).map(([name, values]) => ({ name, values }));
+function seriesObjectToList(seriesObject, labelFormatter = null) {
+  return Object.entries(seriesObject).map(([name, values]) => ({
+    name: labelFormatter ? labelFormatter(name) : name,
+    values,
+  }));
 }
 
 function latestEntries(items, sortKey) {
@@ -513,8 +577,23 @@ function renderMiniSeriesSummary(providerSeries, channelSeries) {
 }
 
 function lookupGatewayCount(items, name) {
+  const count = findGatewayCount(items, name);
+  return count ?? 0;
+}
+
+function findGatewayCount(items, name) {
   const match = items.find((item) => item.gateway_group === name);
-  return match ? match.gateway_count : 0;
+  return match ? match.gateway_count : null;
+}
+
+function formatGatewayGroupLabel(value) {
+  return {
+    total: "Total gateways",
+    online: "Online gateways",
+    offline: "Offline gateways",
+    degraded: "Degraded gateways",
+    exits_today: "Gateway exits today",
+  }[value] || String(value).replaceAll("_", " ");
 }
 
 function labelForPoint(point, mode) {
@@ -541,3 +620,79 @@ function formatNumber(value) {
   return Number(value).toLocaleString();
 }
 
+function collectOrderedLabels(seriesList) {
+  const seen = new Set();
+  const labels = [];
+  seriesList.forEach((series) => {
+    series.values.forEach((item) => {
+      if (!seen.has(item.x)) {
+        seen.add(item.x);
+        labels.push(item.x);
+      }
+    });
+  });
+  return labels;
+}
+
+function niceStep(rawValue) {
+  if (!Number.isFinite(rawValue) || rawValue <= 0) {
+    return 1;
+  }
+  const exponent = Math.floor(Math.log10(rawValue));
+  const fraction = rawValue / 10 ** exponent;
+  if (fraction <= 1) {
+    return 10 ** exponent;
+  }
+  if (fraction <= 2) {
+    return 2 * 10 ** exponent;
+  }
+  if (fraction <= 5) {
+    return 5 * 10 ** exponent;
+  }
+  return 10 * 10 ** exponent;
+}
+
+function bindChartTooltips(scope) {
+  scope.querySelectorAll(".chart-shell").forEach((shell) => {
+    const tooltip = shell.querySelector(".chart-tooltip");
+    shell.querySelectorAll(".chart-point-target").forEach((point) => {
+      const showTooltip = (event) => {
+        tooltip.hidden = false;
+        tooltip.innerHTML = `
+          <span class="chart-tooltip-series">${escapeHtml(point.dataset.series || "")}</span>
+          <span class="chart-tooltip-label">${escapeHtml(point.dataset.label || "")}</span>
+          <span class="chart-tooltip-value">${escapeHtml(point.dataset.value || "")}</span>
+        `;
+        positionTooltip(shell, tooltip, event);
+      };
+      point.addEventListener("mouseenter", showTooltip);
+      point.addEventListener("mousemove", (event) => positionTooltip(shell, tooltip, event));
+      point.addEventListener("mouseleave", () => {
+        tooltip.hidden = true;
+      });
+    });
+  });
+}
+
+function positionTooltip(shell, tooltip, event) {
+  const rect = shell.getBoundingClientRect();
+  const offsetX = event.clientX - rect.left;
+  const offsetY = event.clientY - rect.top;
+  const maxLeft = Math.max(rect.width - tooltip.offsetWidth - 8, 8);
+  const maxTop = Math.max(rect.height - tooltip.offsetHeight - 8, 8);
+  tooltip.style.left = `${Math.min(Math.max(offsetX, 8), maxLeft)}px`;
+  tooltip.style.top = `${Math.min(Math.max(offsetY, 8), maxTop)}px`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
+}

@@ -59,6 +59,33 @@ code {
   margin-bottom: 20px;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 92px;
+  height: 92px;
+  flex: 0 0 auto;
+  border-radius: 24px;
+  box-shadow: 0 20px 44px rgba(4, 10, 18, 0.42);
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.brand-summary {
+  margin: 8px 0 0;
+  max-width: 760px;
+  color: var(--muted);
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
 .topbar h1,
 .panel h2,
 .panel h3,
@@ -136,7 +163,7 @@ code {
 }
 
 .metric-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 }
 
 .metric-card,
@@ -240,7 +267,69 @@ code {
 
 .chart {
   width: 100%;
-  min-height: 240px;
+  min-height: 280px;
+}
+
+.chart-shell {
+  position: relative;
+}
+
+.chart-tooltip {
+  position: absolute;
+  min-width: 128px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 192, 255, 0.3);
+  background: rgba(9, 14, 22, 0.94);
+  box-shadow: 0 20px 42px rgba(2, 7, 14, 0.42);
+  color: var(--text);
+  pointer-events: none;
+  transform: translate(12px, -12px);
+  z-index: 2;
+}
+
+.chart-tooltip[hidden] {
+  display: none;
+}
+
+.chart-tooltip-series {
+  color: var(--accent);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chart-tooltip-label,
+.chart-tooltip-value {
+  display: block;
+  margin-top: 4px;
+}
+
+.chart-tooltip-value {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.chart-axis-label,
+.chart-grid-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.chart-grid-line {
+  stroke: rgba(143, 160, 181, 0.14);
+  stroke-dasharray: 3 5;
+}
+
+.chart-axis-line {
+  stroke: rgba(143, 160, 181, 0.22);
+}
+
+.chart-point {
+  fill: var(--panel);
+}
+
+.chart-point-target {
+  cursor: crosshair;
 }
 
 .chart-empty {
@@ -296,8 +385,16 @@ code {
     padding-top: 20px;
   }
 
+  .brand {
+    align-items: flex-start;
+  }
+
+  .brand-mark {
+    width: 72px;
+    height: 72px;
+  }
+
   .bar-row {
     grid-template-columns: 1fr;
   }
 }
-

@@ -30,11 +30,12 @@ This split matters because a 30-minute archive cannot honestly reproduce minute-
 
 The current implementation covers the approved monitoring scope:
 
-- realtime overview of total sessions, active sessions, derived idle sessions, queue depth, per-agent session counts, and gateway counts
-- historical overview panels derived from archived snapshots
+- realtime overview of total sessions, active sessions, derived idle sessions, queue depth, per-agent session counts, gateway counts, and today’s gateway exit count
+- historical overview panels derived from archived snapshots, including gateway reliability history
 - token statistics based on daily end-of-day archive selection
 - local SQLite storage with no external database dependency
 - host-native user-level `systemd` deployment
+- branded header artwork and operator-oriented historical charts with visible Y-axis labels plus hover tooltips
 
 The internal scope documents remain in this repo:
 
@@ -66,6 +67,8 @@ Open the default local URL:
 ```text
 http://127.0.0.1:8420/
 ```
+
+The UI header ships with a bundled ClawObserver logo: an OpenClaw-style lobster holding a magnifying glass with an enlarged magnified eye. The visual direction stays deep-tech and restrained rather than decorative.
 
 Capture one archive snapshot manually:
 
@@ -181,15 +184,21 @@ The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI
 - runs `openclaw sessions --all-agents --json`
 - derives active versus idle sessions from `ageMs`
 - aggregates per-agent totals and token counters
-- runs `openclaw gateway status`
+- runs `openclaw gateway status --json`
 - reports gateway totals conservatively as available/not available rather than inventing extra metrics
+- emits `gateways.exits_today` when it can do so conservatively
+  - if OpenClaw exposes a structured exits-today value in gateway status output, the adapter uses that directly
+  - otherwise, on Linux hosts using the OpenClaw user-level `systemd` gateway unit, the adapter counts today’s `Main process exited` journal events for `openclaw-gateway.service`
+  - this journal-derived count is a heuristic for gateway exits today and can include operator-initiated restarts/stops if systemd records them as a main-process exit event
 - emits a normalized JSON payload that ClawObserver can use for both live views and archive capture
 
 Current adapter limitations are intentional:
 
 - queue depth is reported as a placeholder `default=0` lane because no richer stable queue source is defined here
-- gateway history remains limited to count snapshots
+- gateway history remains limited to count snapshots, including the archived `exits_today` sample when available
 - if the adapter command fails, live requests and archive capture requests will fail until the configured runtime source is corrected
+
+If you provide your own runtime command instead of the bundled adapter, emit the gateway reliability metric as `gateways.exits_today` in the normalized payload so it appears in both realtime and historical views.
 
 For static testing, point `CLAWOBSERVER_RUNTIME_JSON` at a JSON file or run without either runtime override to use demo data.
 
@@ -207,6 +216,7 @@ Operationally, this means:
 - history may be empty immediately after deployment until the first successful archive capture completes
 - if you want an initial historical sample right away, run `systemctl --user start clawobserver-capture.service`
 - longer-range charts are daily summaries, not minute-resolution traces
+- historical line charts now render visible Y-axis numeric labels and mouse-hover point tooltips with exact values
 
 ## Troubleshooting
 
@@ -227,6 +237,12 @@ If the real runtime adapter is not usable yet:
 
 - comment out `CLAWOBSERVER_RUNTIME_COMMAND` in the env file and set `CLAWOBSERVER_RUNTIME_JSON`, or
 - remove both runtime overrides for a demo-data smoke test
+
+If gateway exits today looks unavailable or suspiciously low:
+
+- run `openclaw gateway status --json` and confirm the gateway service is detectable
+- run `journalctl --user -u openclaw-gateway.service --since today --no-pager`
+- remember that the journal-derived count is a conservative exit-event heuristic, not a perfect runtime-native counter
 
 If you cannot reach the UI:
 

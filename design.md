@@ -36,7 +36,7 @@ This split is mandatory because the audited historical panels originated from Si
 
 1. **Live collector adapter**
    - reads OpenClaw runtime/CLI/API state on demand
-   - normalizes active sessions, per-agent session counts, queue depth, and gateway counts
+   - normalizes active sessions, per-agent session counts, queue depth, gateway counts, and the conservative gateway exits-today metric
 
 2. **Archive snapshot job**
    - runs roughly every 30 minutes
@@ -159,6 +159,7 @@ Purpose:
 
 Minimum required design:
 - support a total gateway count series
+- support an `exits_today` series for gateway reliability views
 
 Optional future columns only if backed by real source data:
 - `online_count`
@@ -205,6 +206,7 @@ Sections:
 2. per-agent active-session distribution
 3. queue depth by lane
 4. compact agent/session table
+5. gateway exit count card and gateway reliability breakdown
 
 Behavior:
 - fast refresh from live runtime source
@@ -219,7 +221,8 @@ Sections:
 4. Agent Activity Statistics
 5. Queue Depth by Lane
 6. Agent Active Sessions Count / Session Statistics / Agent Session Count group
-7. Token Throughput by Model / Provider / Channel
+7. Gateway Reliability
+8. Token Throughput by Model / Provider / Channel
 
 Behavior:
 - shared range selector
@@ -266,6 +269,7 @@ Avoid:
 - use compact, readable type with clear numeric emphasis
 - prioritize tabular alignment for counts and token values
 - use consistent metric-card rhythm rather than oversized hero cards
+- include branded ClawObserver header art that feels operator-facing rather than promotional
 
 ### 7.4 Charts
 
@@ -273,6 +277,8 @@ Avoid:
 - keep gridlines subtle
 - emphasize legends and labels over visual effects
 - use consistent color mapping per agent/lane/state wherever possible
+- render visible Y-axis numeric labels
+- support mouse-hover exact-value tooltips on historical charts
 
 ## 8. Operator documentation expectations
 
@@ -296,6 +302,7 @@ Minimum README coverage:
 1. If live runtime access fails, realtime panels show explicit degraded-state messaging rather than stale values disguised as current.
 2. If archive data is missing for a day, charts show a gap rather than synthetic interpolation.
 3. If token channel data is absent, the UI hides that breakdown cleanly rather than inventing an `unknown` distribution unless the source explicitly emits it.
+4. If gateway exit counts are unavailable, the UI shows them as unavailable rather than silently substituting zero.
 
 ## 10. Implementation sequencing
 
@@ -310,6 +317,6 @@ Recommended build order:
 ## 11. Open questions
 
 1. Which exact OpenClaw command/API should back the live collector contract for sessions, queues, and gateways?
-2. Is gateway state available as a direct runtime value or only as derived counts?
+2. Is gateway exits-today available as a first-class runtime/service value everywhere, or should the systemd journal heuristic remain the conservative default on Linux hosts?
 3. Are Agent Activity Statistics best represented as archived sampled counters, sampled rates, or a compact multi-series daily summary from the available runtime source?
 4. Should the archive scheduler live inside the app process or as a separate cron-safe collector command?

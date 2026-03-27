@@ -111,6 +111,7 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
         ],
         "gateways": {
             "total": 8,
+            "exits_today": max(minute_index // 10, 0),
             "states": {
                 "online": 6 + minute_index % 2,
                 "offline": 1,
@@ -239,17 +240,26 @@ class LiveRuntimeAdapter:
         if not isinstance(raw_gateways, dict):
             return [GatewaySample(gateway_group="total", gateway_count=0)]
 
+        samples_by_group: dict[str, int] = {}
+
         states = raw_gateways.get("states", {})
-        state_samples = []
         for name, value in states.items() if isinstance(states, dict) else []:
-            state_samples.append(
-                GatewaySample(gateway_group=str(name), gateway_count=_to_int(value))
-            )
-        state_samples.sort(key=lambda item: item.gateway_group)
+            samples_by_group[str(name)] = _to_int(value)
+
+        for name, value in raw_gateways.items():
+            if name in {"total", "states"}:
+                continue
+            if isinstance(value, dict):
+                continue
+            samples_by_group[str(name)] = _to_int(value)
+
+        state_samples = [
+            GatewaySample(gateway_group=name, gateway_count=count)
+            for name, count in sorted(samples_by_group.items())
+        ]
 
         total = _to_int(raw_gateways.get("total"))
         if total == 0 and state_samples:
             total = sum(item.gateway_count for item in state_samples)
 
         return [GatewaySample(gateway_group="total", gateway_count=total), *state_samples]
-

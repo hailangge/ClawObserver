@@ -63,6 +63,34 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         self.assertEqual(payload["points"][0]["session_overview"]["active_sessions"], 8)
         self.assertEqual(payload["points"][-1]["session_overview"]["active_sessions"], 12)
 
+    def test_history_preserves_gateway_exit_counts(self) -> None:
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-27T08:00:00+00:00",
+                active_sessions=8,
+                gateway_exit_count=1,
+            )
+        )
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-27T12:00:00+00:00",
+                active_sessions=10,
+                gateway_exit_count=3,
+            )
+        )
+
+        payload = self.store.history_payload("current_day")
+
+        exit_series = [
+            next(
+                item["gateway_count"]
+                for item in point["gateways"]
+                if item["gateway_group"] == "exits_today"
+            )
+            for point in payload["points"]
+        ]
+        self.assertEqual(exit_series, [1, 3])
+
     def test_token_statistics_sum_latest_daily_counters(self) -> None:
         self.store.insert_snapshot(
             self._snapshot(
@@ -127,6 +155,7 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         active_sessions: int,
         token_input: int = 120,
         token_output: int = 55,
+        gateway_exit_count: int = 0,
     ) -> RuntimeSnapshot:
         captured_at = datetime.fromisoformat(iso_timestamp)
         return RuntimeSnapshot(
@@ -151,6 +180,7 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
             ],
             gateways=[
                 GatewaySample("total", 3),
+                GatewaySample("exits_today", gateway_exit_count),
                 GatewaySample("online", 3),
             ],
             token_counters=[

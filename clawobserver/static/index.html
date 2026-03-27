@@ -9,9 +9,20 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">OpenClaw monitoring</p>
-          <h1>ClawObserver</h1>
+        <div class="brand">
+          <img
+            class="brand-mark"
+            src="/assets/logo.svg"
+            alt="ClawObserver lobster logo with magnifying glass"
+          />
+          <div class="brand-copy">
+            <p class="eyebrow">OpenClaw monitoring</p>
+            <h1>ClawObserver</h1>
+            <p class="brand-summary">
+              Runtime-first operator console with sampled archive history and gateway reliability
+              tracking.
+            </p>
+          </div>
         </div>
         <div class="topbar-actions">
           <button id="capture-button" class="button subtle">Capture archive snapshot</button>
@@ -49,4 +60,3 @@
     <script src="/assets/app.js" defer></script>
   </body>
   </html>
-
