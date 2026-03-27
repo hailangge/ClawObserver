@@ -1,0 +1,15 @@
+[Unit]
+Description=ClawObserver web service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=%h/.config/clawobserver/clawobserver.env
+ExecStart=/usr/bin/env python3 -m clawobserver serve
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

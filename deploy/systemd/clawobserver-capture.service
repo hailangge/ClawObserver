@@ -1,0 +1,10 @@
+[Unit]
+Description=ClawObserver archive capture
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__REPO_ROOT__
+EnvironmentFile=%h/.config/clawobserver/clawobserver.env
+ExecStart=/usr/bin/env python3 -m clawobserver capture

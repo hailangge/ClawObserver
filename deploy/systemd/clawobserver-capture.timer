@@ -1,0 +1,10 @@
+[Unit]
+Description=Run ClawObserver archive capture every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+Unit=clawobserver-capture.service
+
+[Install]
+WantedBy=timers.target

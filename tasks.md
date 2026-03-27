@@ -10,13 +10,16 @@
 - [x] Implement token statistics page
 - [x] Run local integration/system validation
 - [x] Validate against a real OpenClaw runtime source
-- [ ] Final review and commit implementation changes
+- [x] Add user-level systemd service/timer deployment
+- [x] Register and validate the running user services
+- [x] Final review and commit implementation changes
 
 ## Notes
-- Current status: implementation complete; local and real-runtime system validation passed. Final review/commit is still pending.
+- Current status: implementation complete; local validation, real-runtime validation, and user-level systemd service registration all passed. Repo changes are committed.
 - App scaffold created with a dependency-light Python server, SQLite archive store, static UI shell, and built-in demo runtime adapter for local validation.
 - Verified locally on 2026-03-27: `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver`, seeded demo history, served the app, and smoke-tested `/api/health`, `/api/live/overview`, `/api/history/overview?range=last_7_days`, `/api/history/tokens?range=last_7_days`, and `POST /api/archive/capture` successfully.
-- Verified against a real OpenClaw runtime source on 2026-03-27 by setting `CLAWOBSERVER_RUNTIME_COMMAND` to a temporary adapter built from `openclaw sessions --all-agents --json` plus `openclaw gateway status`, then smoke-testing `/api/health`, `/api/live/overview`, `/api/history/overview?range=current_day`, `/api/history/tokens?range=current_day`, and `POST /api/archive/capture` successfully.
+- Verified against a real OpenClaw runtime source on 2026-03-27 by setting `CLAWOBSERVER_RUNTIME_COMMAND` to an adapter built from `openclaw sessions --all-agents --json` plus `openclaw gateway status`, then smoke-testing `/api/health`, `/api/live/overview`, `/api/history/overview?range=current_day`, `/api/history/tokens?range=current_day`, and `POST /api/archive/capture` successfully.
+- Registered the app as user-level systemd units on 2026-03-27 via `./scripts/install_user_service.sh`: `clawobserver.service` is active/running, `clawobserver-capture.timer` is active/waiting, and a manual `systemctl --user start clawobserver-capture.service` completed successfully.
 - Historical scope must remain grounded in the audited 2026-03-27 dashboard families, not obsolete `openclaw_agent_*` summary notes.
 - Live runtime state and archive-backed history must remain separate paths.
 - Gateway history beyond count snapshots remains conservative/optional until the runtime source is confirmed.
