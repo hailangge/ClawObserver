@@ -2,6 +2,8 @@ const state = {
   page: "realtime",
   range: "current_day",
   liveTimer: null,
+  loadingKey: null,
+  requestSequence: 0,
 };
 
 const palette = ["#64c0ff", "#5eb88d", "#d8aa5a", "#d16d73", "#7f9cf5", "#6fd0c4"];
@@ -15,6 +17,9 @@ document.addEventListener("DOMContentLoaded", () => {
 function bindNavigation() {
   document.querySelectorAll(".tab").forEach((button) => {
     button.addEventListener("click", () => {
+      if (state.page === button.dataset.page) {
+        return;
+      }
       state.page = button.dataset.page;
       document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
@@ -24,6 +29,9 @@ function bindNavigation() {
 
   document.querySelectorAll(".range-button").forEach((button) => {
     button.addEventListener("click", () => {
+      if (state.range === button.dataset.range) {
+        return;
+      }
       state.range = button.dataset.range;
       document.querySelectorAll(".range-button").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
@@ -46,23 +54,64 @@ function bindActions() {
   });
 }
 
-async function refreshPage() {
+async function refreshPage({ showLoading = true } = {}) {
+  const rangeSelector = document.querySelector(".range-selector");
+  if (rangeSelector) {
+    rangeSelector.style.display = state.page === "realtime" ? "none" : "";
+  }
   clearLiveRefresh();
-  if (state.page === "realtime") {
-    const payload = await fetchJson("/api/live/overview");
-    renderRealtime(payload);
-    state.liveTimer = window.setTimeout(refreshPage, payload.refresh_seconds * 1000);
+  const requestKey = currentRequestKey();
+  if (state.loadingKey === requestKey) {
     return;
   }
+  state.loadingKey = requestKey;
+  const requestSequence = ++state.requestSequence;
 
-  if (state.page === "historical") {
-    const payload = await fetchJson(`/api/history/overview?range=${state.range}`);
-    renderHistorical(payload);
-    return;
+  if (showLoading) {
+    setStatus("Loading...");
+    renderRequestState("Loading...", loadingMessageForRequest());
   }
 
-  const payload = await fetchJson(`/api/history/tokens?range=${state.range}`);
-  renderTokens(payload);
+  try {
+    if (state.page === "realtime") {
+      const payload = await fetchJson("/api/live/overview");
+      if (requestSequence !== state.requestSequence) {
+        return;
+      }
+      renderRealtime(payload);
+      state.liveTimer = window.setTimeout(
+        () => refreshPage({ showLoading: false }),
+        payload.refresh_seconds * 1000
+      );
+      return;
+    }
+
+    if (state.page === "historical") {
+      const payload = await fetchJson(`/api/history/overview?range=${state.range}`);
+      if (requestSequence !== state.requestSequence) {
+        return;
+      }
+      renderHistorical(payload);
+      return;
+    }
+
+    const payload = await fetchJson(`/api/history/tokens?range=${state.range}`);
+    if (requestSequence !== state.requestSequence) {
+      return;
+    }
+    renderTokens(payload);
+  } catch (error) {
+    if (requestSequence !== state.requestSequence) {
+      return;
+    }
+    console.error(error);
+    setStatus("Load failed");
+    renderFailureState("The latest data request failed. Retry the same page or range to fetch a fresh payload.");
+  } finally {
+    if (state.loadingKey === requestKey) {
+      state.loadingKey = null;
+    }
+  }
 }
 
 function clearLiveRefresh() {
@@ -76,6 +125,42 @@ function setStatus(label) {
   document.getElementById("status-pill").textContent = label;
 }
 
+function renderRequestState(title, message) {
+  const root = document.getElementById("page-root");
+  root.setAttribute("aria-busy", "true");
+  root.innerHTML = `
+    <section class="panel loading-state">
+      <h2>${escapeHtml(title)}</h2>
+      <p>${escapeHtml(message)}</p>
+    </section>
+  `;
+}
+
+function renderFailureState(message) {
+  const root = document.getElementById("page-root");
+  root.setAttribute("aria-busy", "false");
+  root.innerHTML = `
+    <section class="panel loading-state">
+      <h2>Load failed</h2>
+      <p>${escapeHtml(message)}</p>
+    </section>
+  `;
+}
+
+function loadingMessageForRequest() {
+  if (state.page === "realtime") {
+    return "Fetching live runtime state.";
+  }
+  if (state.page === "historical") {
+    return `Loading ${displayRange(state.range)} archive history.`;
+  }
+  return `Loading ${displayRange(state.range)} token statistics.`;
+}
+
+function currentRequestKey() {
+  return `${state.page}:${state.page === "realtime" ? "live" : state.range}`;
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -85,6 +170,7 @@ async function fetchJson(url, options) {
 }
 
 function renderRealtime(payload) {
+  document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`Live · ${formatDateTime(payload.captured_at)}`);
   const root = document.getElementById("page-root");
   const totalGatewayCount = lookupGatewayCount(payload.gateways, "total");
@@ -159,6 +245,7 @@ function renderRealtime(payload) {
 }
 
 function renderHistorical(payload) {
+  document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`${payload.mode_label} · ${displayRange(state.range)}`);
   const root = document.getElementById("page-root");
   if (!payload.points.length) {
@@ -213,7 +300,7 @@ function renderHistorical(payload) {
       ${panelChart("Session State", "Historical state counts from archived samples.", seriesObjectToList(sessionStateSeries))}
       ${panelChart("Delivery Queue Depth", "Archived queue depth reflects the real OpenClaw delivery queue on disk as pending versus failed items. Runtime lane data is only used as a fallback when that queue path is unavailable.", seriesObjectToList(queueSeries, formatQueueLabel))}
       ${panelChart("Agent Session Count", "Per-agent total session counts.", seriesObjectToList(agentTotalSeries))}
-      ${panelChart("Token Throughput by Model", "Historical token counters within approved scope.", seriesObjectToList(tokenModelSeries))}
+      ${panelChart("Token Throughput by Model", "Historical token counters within approved scope.", seriesObjectToList(tokenModelSeries), { valueFormat: "token" })}
     </section>
     <section class="table-grid">
       <section class="panel">
@@ -256,6 +343,7 @@ function renderHistorical(payload) {
 }
 
 function renderTokens(payload) {
+  document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`${payload.selection_label} · ${displayRange(state.range)}`);
   const root = document.getElementById("page-root");
   if (!payload.daily_records.length) {
@@ -265,10 +353,10 @@ function renderTokens(payload) {
 
   root.innerHTML = `
     <section class="metric-grid">
-      ${metricCard("Input tokens", formatNumber(payload.total_input_tokens), "Summed from each day’s last archived record")}
-      ${metricCard("Output tokens", formatNumber(payload.total_output_tokens), "Summed from each day’s last archived record")}
+      ${metricCard("Input tokens", formatTokenCount(payload.total_input_tokens), payload.selection_description)}
+      ${metricCard("Output tokens", formatTokenCount(payload.total_output_tokens), payload.selection_description)}
       ${metricCard("Cache hit ratio", payload.has_cache_data ? formatPercent(payload.cache_hit_ratio) : "Unavailable", "Derived from archived cacheRead/cacheWrite counters when the runtime exposes them")}
-      ${metricCard("Cached input tokens", payload.has_cache_data ? formatNumber(payload.total_cache_read_tokens) : "Unavailable", "Read-side cache tokens across the selected daily end-state records")}
+      ${metricCard("Cached input tokens", payload.has_cache_data ? formatTokenCount(payload.total_cache_read_tokens) : "Unavailable", payload.selection_description)}
       ${metricCard("Daily records", payload.daily_records.length, displayRange(state.range))}
       ${metricCard("Channel breakdown", payload.has_channel_data ? "Available" : "Hidden", "Rendered only when archive data includes channel")}
     </section>
@@ -281,15 +369,15 @@ function renderTokens(payload) {
       <div class="panel-header">
         <div>
           <h2>Daily End-of-Day Token Records</h2>
-          <p class="panel-subtitle">Current day uses the latest archived record. Cross-day totals sum daily end-state records.</p>
+          <p class="panel-subtitle">${escapeHtml(payload.selection_description)}</p>
         </div>
       </div>
       ${renderTable(payload.daily_records, [
         { key: "day_key", label: "Day" },
         { key: "captured_at", label: "Captured At", format: formatDateTime },
-        { key: "input_tokens", label: "Input", mono: true, format: formatNumber },
-        { key: "output_tokens", label: "Output", mono: true, format: formatNumber },
-        { key: "cache_read_tokens", label: "Cache Read", mono: true, format: formatNumber },
+        { key: "input_tokens", label: "Input", mono: true, format: formatTokenCount },
+        { key: "output_tokens", label: "Output", mono: true, format: formatTokenCount },
+        { key: "cache_read_tokens", label: "Cache Read", mono: true, format: formatTokenCount },
         { key: "cache_hit_ratio", label: "Hit Ratio", mono: true, format: formatPercentOrBlank },
       ])}
     </section>
@@ -306,7 +394,7 @@ function metricCard(label, value, footnote) {
   `;
 }
 
-function renderBarList(items, labelKey, valueKey, suffix, labelFormatter = null) {
+function renderBarList(items, labelKey, valueKey, suffix, labelFormatter = null, valueFormatter = formatNumber) {
   if (!items.length) {
     return `<div class="chart-empty">No data</div>`;
   }
@@ -320,7 +408,7 @@ function renderBarList(items, labelKey, valueKey, suffix, labelFormatter = null)
             <div class="bar-row">
               <div>${labelFormatter ? labelFormatter(item[labelKey]) : item[labelKey]}</div>
               <div class="bar-track"><div class="bar-fill" style="width: ${width}%"></div></div>
-              <div class="mono">${formatNumber(item[valueKey])} ${suffix}</div>
+              <div class="mono">${valueFormatter(item[valueKey])} ${suffix}</div>
             </div>
           `;
         })
@@ -373,7 +461,7 @@ function renderTable(rows, columns) {
   `;
 }
 
-function panelChart(title, subtitle, seriesList) {
+function panelChart(title, subtitle, seriesList, options = {}) {
   return `
     <section class="panel">
       <div class="panel-header">
@@ -382,7 +470,7 @@ function panelChart(title, subtitle, seriesList) {
           <p class="panel-subtitle">${subtitle}</p>
         </div>
       </div>
-      ${renderLineChart(seriesList)}
+      ${renderLineChart(seriesList, options)}
     </section>
   `;
 }
@@ -401,11 +489,12 @@ function panelPieChart(title, subtitle, rows, labelKey, valueKey, labelFormatter
   `;
 }
 
-function renderLineChart(seriesList) {
+function renderLineChart(seriesList, options = {}) {
   const filtered = seriesList.filter((item) => item.values && item.values.length);
   if (!filtered.length) {
     return `<div class="chart-empty">No data</div>`;
   }
+  const valueFormat = options.valueFormat || "number";
   const width = 640;
   const height = 280;
   const inset = { top: 16, right: 18, bottom: 34, left: 56 };
@@ -435,7 +524,7 @@ function renderLineChart(seriesList) {
       const y = yScale(value);
       return `
         <line class="chart-grid-line" x1="${inset.left}" y1="${y}" x2="${width - inset.right}" y2="${y}" />
-        <text class="chart-grid-label" x="${inset.left - 8}" y="${y + 4}" text-anchor="end">${formatNumber(value)}</text>
+        <text class="chart-grid-label" x="${inset.left - 8}" y="${y + 4}" text-anchor="end">${formatValueByType(value, valueFormat)}</text>
       `;
     })
     .join("");
@@ -514,7 +603,7 @@ function renderLineChart(seriesList) {
     .join("");
 
   return `
-    <div class="chart-shell">
+    <div class="chart-shell" data-value-format="${escapeAttribute(valueFormat)}">
       <svg class="chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
         ${grid}
         <line class="chart-axis-line" x1="${inset.left}" y1="${height - inset.bottom}" x2="${width - inset.right}" y2="${height - inset.bottom}" />
@@ -606,7 +695,7 @@ function distributionPanel(title, rows) {
           <p class="panel-subtitle">Totals remain within approved token statistics scope.</p>
         </div>
       </div>
-      ${rows.length ? renderBarList(rows, "name", "total_tokens", "tokens") : `<div class="chart-empty">No data</div>`}
+      ${rows.length ? renderBarList(rows, "name", "total_tokens", "tokens", null, formatTokenCount) : `<div class="chart-empty">No data</div>`}
     </section>
   `;
 }
@@ -677,9 +766,9 @@ function renderMiniSeriesSummary(providerSeries, channelSeries) {
   return `
     <div class="list-table">
       <p class="subtle-label">Providers</p>
-      ${providerEntries.length ? renderBarList(providerEntries, "name", "total_tokens", "tokens") : `<div class="chart-empty">No provider data</div>`}
+      ${providerEntries.length ? renderBarList(providerEntries, "name", "total_tokens", "tokens", null, formatTokenCount) : `<div class="chart-empty">No provider data</div>`}
       <p class="subtle-label">Channels</p>
-      ${channelEntries.length ? renderBarList(channelEntries, "name", "total_tokens", "tokens") : `<div class="chart-empty">No channel data</div>`}
+      ${channelEntries.length ? renderBarList(channelEntries, "name", "total_tokens", "tokens", null, formatTokenCount) : `<div class="chart-empty">No channel data</div>`}
     </div>
   `;
 }
@@ -743,6 +832,29 @@ function formatNumber(value) {
   return Number(value).toLocaleString();
 }
 
+function formatTokenCount(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "0";
+  }
+  if (Math.abs(numericValue) < 1000) {
+    return formatNumber(numericValue);
+  }
+  const scaledValue = numericValue / 1000;
+  const fractionDigits = Math.abs(scaledValue) >= 100 ? 0 : 1;
+  return `${scaledValue.toLocaleString([], {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}K`;
+}
+
+function formatValueByType(value, type) {
+  if (type === "token") {
+    return formatTokenCount(value);
+  }
+  return formatNumber(value);
+}
+
 function formatPercent(value) {
   if (!Number.isFinite(value)) {
     return "Unavailable";
@@ -789,6 +901,7 @@ function niceStep(rawValue) {
 function bindChartTooltips(scope) {
   scope.querySelectorAll(".chart-shell").forEach((shell) => {
     const tooltip = shell.querySelector(".chart-tooltip");
+    const valueFormat = shell.dataset.valueFormat || "number";
     shell.querySelectorAll(".chart-hover-target").forEach((point) => {
       const showTooltip = (event) => {
         const entries = parseTooltipEntries(point.dataset.points);
@@ -804,7 +917,7 @@ function bindChartTooltips(scope) {
                       <span class="legend-swatch" style="background: ${escapeAttribute(entry.color)}"></span>
                       ${escapeHtml(entry.name)}
                     </span>
-                    <span class="chart-tooltip-value">${escapeHtml(formatNumber(entry.value))}</span>
+                    <span class="chart-tooltip-value">${escapeHtml(formatValueByType(entry.value, valueFormat))}</span>
                   </div>
                 `
               )

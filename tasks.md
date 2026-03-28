@@ -29,9 +29,16 @@
 - [x] Run validation for the optimization pass
 - [x] Commit the optimization pass
 - [x] Recalibrate queue depth against the real OpenClaw delivery queue source
+- [x] Fix token statistics day-key aggregation for historical ranges
+- [x] Add compact token-count formatting across token UI displays
+- [x] Add visible loading states for page and range transitions
+- [x] Run validation for the token statistics repair pass
+- [x] Hide time-range selector on Realtime page
+- [x] Fix Gateway exits today collection from systemd journal
+- [x] Fix token statistics undercounting by summing cumulative snapshot diffs
 
 ## Notes
-- Current status: the optimization-pass implementation is complete, validated locally, and committed in-repo. Push/restart steps remain separate follow-up work.
+- Current status: all fixes implemented locally and ready for verification handoff. The time-range selector is hidden on Realtime, gateway exits are accurately detected via systemd journal unit names, and token aggregation correctly sums cross-snapshot cumulative diffs to capture full daily usage (including reset/snapshot edge cases).
 - App scaffold created with a dependency-light Python server, SQLite archive store, static UI shell, and built-in demo runtime adapter for local validation.
 - Verified locally on 2026-03-27: `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver`, seeded demo history, served the app, and smoke-tested `/api/health`, `/api/live/overview`, `/api/history/overview?range=last_7_days`, `/api/history/tokens?range=last_7_days`, and `POST /api/archive/capture` successfully.
 - Verified against a real OpenClaw runtime source on 2026-03-27 by setting `CLAWOBSERVER_RUNTIME_COMMAND` to the bundled adapter, which now combines `openclaw sessions --all-agents --json`, `openclaw gateway call status --json`, `openclaw gateway status --json`, and session-store cache counters. Smoke tests for `/api/health`, `/api/live/overview`, `/api/history/overview?range=current_day`, `/api/history/tokens?range=current_day`, and `POST /api/archive/capture` all succeeded.
@@ -49,3 +56,7 @@
 - Session-type comparison is archived via conservative Persistent vs One-Shot classification from stable OpenClaw session-key conventions because the current public session rows did not publish a first-class mode field for all sessions during the 2026-03-27 investigation.
 - Token cache-hit ratio is now included when archived `cacheRead` / `cacheWrite` counters are present; if a runtime source omits those counters, the UI surfaces the ratio as unavailable rather than zero.
 - Current-day token rollups now ignore sessions whose latest known update timestamp is not from the selected day, which keeps stale legacy models like `gpt-5.3-codex` from polluting today’s approximate token view.
+- Repaired token statistics on 2026-03-28 so cross-day ranges select the latest archived rows by `day_key`, not `capture_date` or per-field maxima. This preserves full daily totals when a day’s final token record is captured just after midnight and prevents mixed-snapshot token totals.
+- Added compact token rendering on 2026-03-28 so token cards, token tables, token bar lists, token chart axes, and token tooltips use `K` formatting for large values.
+- Added visible page-body loading states on 2026-03-28 for Realtime, Historical, and Token Stats page/range transitions so the UI shows `Loading...` until the next payload finishes rendering.
+- Verified the token-statistics repair pass locally on 2026-03-28 with pinned archive-date unit tests plus `node --check` on the frontend bundle before the full validation pass.

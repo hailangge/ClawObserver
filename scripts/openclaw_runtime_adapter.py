@@ -204,7 +204,7 @@ def derive_gateway_exit_count(gateway_status: dict[str, Any]) -> tuple[int, str]
                 except json.JSONDecodeError:
                     continue
                 message = str(entry.get("MESSAGE", ""))
-                if "Main process exited" in message:
+                if "Main process exited" in message or ("Stopped " in message and unit_name.lower() in message.lower()):
                     exit_events += 1
             return exit_events, "systemd-journal-heuristic"
 

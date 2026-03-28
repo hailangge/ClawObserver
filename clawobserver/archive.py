@@ -457,11 +457,14 @@ class ArchiveStore:
         return payload
 
     def token_statistics_payload(self, range_key: str) -> dict[str, Any]:
-        snapshot_rows, _ = self._selected_snapshot_rows(range_key, day_last_only=True)
-        if not snapshot_rows:
+        token_rows, selection_label, selection_description = self._selected_token_counter_rows(
+            range_key
+        )
+        if not token_rows:
             return {
                 "range_key": range_key,
-                "selection_label": "Latest archived record per day",
+                "selection_label": selection_label,
+                "selection_description": selection_description,
                 "daily_records": [],
                 "total_input_tokens": 0,
                 "total_output_tokens": 0,
@@ -474,37 +477,6 @@ class ArchiveStore:
                 "has_channel_data": False,
                 "has_cache_data": False,
             }
-
-        snapshot_ids = [int(row["id"]) for row in snapshot_rows]
-        metadata_by_id = {
-            int(row["id"]): {
-                "captured_at": row["captured_at"],
-                "capture_date": row["capture_date"],
-            }
-            for row in snapshot_rows
-        }
-
-        placeholders = ",".join("?" for _ in snapshot_ids)
-        with self._connect() as connection:
-            token_rows = connection.execute(
-                f"""
-                SELECT
-                    snapshot_id,
-                    day_key,
-                    provider,
-                    model,
-                    channel,
-                    input_tokens,
-                    output_tokens,
-                    cache_read_tokens,
-                    cache_write_tokens,
-                    cache_metrics_present
-                FROM token_counter_samples
-                WHERE snapshot_id IN ({placeholders})
-                ORDER BY day_key ASC, provider ASC, model ASC, channel ASC
-                """,
-                snapshot_ids,
-            ).fetchall()
 
         total_input_tokens = 0
         total_output_tokens = 0
@@ -524,7 +496,6 @@ class ArchiveStore:
         has_cache_data = False
 
         for row in token_rows:
-            snapshot_id = int(row["snapshot_id"])
             day_key = str(row["day_key"])
             input_tokens = int(row["input_tokens"])
             output_tokens = int(row["output_tokens"])
@@ -562,8 +533,8 @@ class ArchiveStore:
             if day_key not in daily_records:
                 daily_records[day_key] = {
                     "day_key": day_key,
-                    "capture_date": metadata_by_id[snapshot_id]["capture_date"],
-                    "captured_at": metadata_by_id[snapshot_id]["captured_at"],
+                    "capture_date": row["capture_date"],
+                    "captured_at": row["captured_at"],
                     "input_tokens": 0,
                     "output_tokens": 0,
                     "cache_read_tokens": 0,
@@ -590,8 +561,11 @@ class ArchiveStore:
 
         return {
             "range_key": range_key,
-            "selection_label": "Latest archived record per day",
-            "daily_records": list(daily_records.values()),
+            "selection_label": selection_label,
+            "selection_description": selection_description,
+            "daily_records": sorted(
+                daily_records.values(), key=lambda item: str(item["day_key"])
+            ),
             "total_input_tokens": total_input_tokens,
             "total_output_tokens": total_output_tokens,
             "total_cache_read_tokens": total_cache_read_tokens,
@@ -608,6 +582,77 @@ class ArchiveStore:
             "has_channel_data": has_channel_data,
             "has_cache_data": has_cache_data,
         }
+
+    def _selected_token_counter_rows(
+        self, range_key: str
+    ) -> tuple[list[dict[str, Any]], str, str]:
+        start_date, end_date = _range_dates(range_key)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                WITH diffs AS (
+                    SELECT
+                        t.day_key,
+                        t.provider,
+                        t.model,
+                        t.channel,
+                        t.input_tokens,
+                        t.output_tokens,
+                        t.cache_read_tokens,
+                        t.cache_write_tokens,
+                        t.cache_metrics_present,
+                        s.capture_date,
+                        s.captured_at,
+                        t.input_tokens - IFNULL(LAG(t.input_tokens) OVER (PARTITION BY t.provider, t.model, t.channel ORDER BY s.captured_at ASC), 0) AS in_diff,
+                        t.output_tokens - IFNULL(LAG(t.output_tokens) OVER (PARTITION BY t.provider, t.model, t.channel ORDER BY s.captured_at ASC), 0) AS out_diff,
+                        t.cache_read_tokens - IFNULL(LAG(t.cache_read_tokens) OVER (PARTITION BY t.provider, t.model, t.channel ORDER BY s.captured_at ASC), 0) AS cread_diff,
+                        t.cache_write_tokens - IFNULL(LAG(t.cache_write_tokens) OVER (PARTITION BY t.provider, t.model, t.channel ORDER BY s.captured_at ASC), 0) AS cwrite_diff
+                    FROM token_counter_samples AS t
+                    INNER JOIN archive_snapshots AS s
+                        ON s.id = t.snapshot_id
+                )
+                SELECT
+                    day_key,
+                    provider,
+                    model,
+                    channel,
+                    SUM(CASE WHEN in_diff > 0 THEN in_diff ELSE input_tokens END) AS input_tokens,
+                    SUM(CASE WHEN out_diff > 0 THEN out_diff ELSE output_tokens END) AS output_tokens,
+                    SUM(CASE WHEN cread_diff > 0 THEN cread_diff ELSE cache_read_tokens END) AS cache_read_tokens,
+                    SUM(CASE WHEN cwrite_diff > 0 THEN cwrite_diff ELSE cache_write_tokens END) AS cache_write_tokens,
+                    MAX(cache_metrics_present) AS cache_metrics_present,
+                    MAX(capture_date) AS capture_date,
+                    MAX(captured_at) AS captured_at
+                FROM diffs
+                WHERE day_key BETWEEN ? AND ?
+                GROUP BY day_key, provider, model, channel
+                ORDER BY day_key ASC, provider ASC, model ASC, channel ASC
+                """,
+                (
+                    start_date.isoformat(),
+                    end_date.isoformat(),
+                ),
+            ).fetchall()
+
+        aggregated_rows = [dict(row) for row in rows]
+        selection_label = (
+            "Latest archived record"
+            if range_key == "current_day"
+            else "Latest archived record per day"
+        )
+        selection_description = (
+            "Current day reflects the latest archived token record available for today."
+            if range_key == "current_day"
+            else (
+                "Cross-day totals sum each selected day_key's latest archived token record, "
+                "even when that record was captured after midnight."
+            )
+        )
+        return (
+            aggregated_rows,
+            selection_label,
+            selection_description,
+        )
 
     def _selected_snapshot_rows(
         self,

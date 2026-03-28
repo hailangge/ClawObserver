@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
+import clawobserver.archive as archive_module
 from clawobserver.archive import ArchiveStore
 from clawobserver.config import AppConfig
 from clawobserver.models import (
@@ -21,6 +22,8 @@ from clawobserver.models import (
 
 class ArchiveQuerySemanticsTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.original_today = archive_module._today
+        archive_module._today = lambda: date(2026, 3, 27)
         self.temp_dir = tempfile.TemporaryDirectory()
         base_dir = Path(self.temp_dir.name)
         self.config = AppConfig(
@@ -37,6 +40,7 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         self.store = ArchiveStore(self.config)
 
     def tearDown(self) -> None:
+        archive_module._today = self.original_today
         self.temp_dir.cleanup()
 
     def test_multi_day_history_uses_last_record_per_day(self) -> None:
@@ -165,14 +169,91 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
 
         payload = self.store.token_statistics_payload("last_7_days")
 
-        self.assertEqual(payload["total_input_tokens"], 360)
-        self.assertEqual(payload["total_output_tokens"], 150)
-        self.assertEqual(payload["total_cache_read_tokens"], 100)
-        self.assertEqual(payload["total_cache_write_tokens"], 50)
-        self.assertAlmostEqual(payload["cache_hit_ratio"], 100 / 510)
+        self.assertEqual(payload["total_input_tokens"], 200)
+        self.assertEqual(payload["total_output_tokens"], 90)
+        self.assertEqual(payload["total_cache_read_tokens"], 60)
+        self.assertEqual(payload["total_cache_write_tokens"], 30)
+        self.assertAlmostEqual(payload["cache_hit_ratio"], 60 / 290)
         self.assertEqual(len(payload["daily_records"]), 2)
         self.assertTrue(payload["has_channel_data"])
         self.assertTrue(payload["has_cache_data"])
+
+    def test_token_statistics_use_latest_day_key_record_across_midnight(self) -> None:
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-26T23:30:00+00:00",
+                active_sessions=8,
+                token_day_key="2026-03-26",
+                token_input=3_300_000,
+                token_output=220_000,
+            )
+        )
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-27T00:05:00+00:00",
+                active_sessions=8,
+                token_day_key="2026-03-26",
+                token_input=8_400_000,
+                token_output=510_000,
+            )
+        )
+
+        payload = self.store.token_statistics_payload("last_7_days")
+
+        self.assertEqual(payload["total_input_tokens"], 8_400_000)
+        self.assertEqual(payload["total_output_tokens"], 510_000)
+        self.assertEqual(len(payload["daily_records"]), 1)
+        self.assertEqual(payload["daily_records"][0]["day_key"], "2026-03-26")
+        self.assertEqual(payload["daily_records"][0]["captured_at"], "2026-03-27T00:05:00+00:00")
+        self.assertEqual(payload["daily_records"][0]["input_tokens"], 8_400_000)
+
+    def test_token_statistics_use_one_latest_snapshot_per_day_key(self) -> None:
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-26T21:00:00+00:00",
+                active_sessions=8,
+                token_counters=[
+                    TokenCounterSample(
+                        day_key="2026-03-26",
+                        provider="openai",
+                        model="gpt-5.4",
+                        channel="default",
+                        input_tokens=50,
+                        output_tokens=10,
+                        cache_read_tokens=5,
+                        cache_write_tokens=2,
+                        cache_metrics_present=True,
+                    )
+                ],
+            )
+        )
+        self.store.insert_snapshot(
+            self._snapshot(
+                "2026-03-26T23:30:00+00:00",
+                active_sessions=9,
+                token_counters=[
+                    TokenCounterSample(
+                        day_key="2026-03-26",
+                        provider="openai",
+                        model="gpt-5.4",
+                        channel="default",
+                        input_tokens=40,
+                        output_tokens=20,
+                        cache_read_tokens=4,
+                        cache_write_tokens=3,
+                        cache_metrics_present=True,
+                    )
+                ],
+            )
+        )
+
+        payload = self.store.token_statistics_payload("last_7_days")
+
+        self.assertEqual(payload["total_input_tokens"], 90)
+        self.assertEqual(payload["total_output_tokens"], 20)
+        self.assertEqual(payload["total_cache_read_tokens"], 9)
+        self.assertEqual(payload["total_cache_write_tokens"], 3)
+        self.assertEqual(payload["daily_records"][0]["captured_at"], "2026-03-26T23:30:00+00:00")
 
     def test_current_day_token_statistics_use_latest_snapshot_only(self) -> None:
         self.store.insert_snapshot(
@@ -214,6 +295,8 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         token_output: int = 55,
         token_cache_read: int = 0,
         token_cache_write: int = 0,
+        token_day_key: str | None = None,
+        token_counters: list[TokenCounterSample] | None = None,
         gateway_exit_count: int = 0,
         persistent_sessions: int | None = None,
         one_shot_sessions: int | None = None,
@@ -257,9 +340,11 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
                 GatewaySample("exits_today", gateway_exit_count),
                 GatewaySample("online", 3),
             ],
-            token_counters=[
+            token_counters=token_counters
+            if token_counters is not None
+            else [
                 TokenCounterSample(
-                    day_key=captured_at.date().isoformat(),
+                    day_key=token_day_key or captured_at.date().isoformat(),
                     provider="openai",
                     model="gpt-5.4",
                     channel="default",
