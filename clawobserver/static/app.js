@@ -11,6 +11,7 @@ const palette = ["#64c0ff", "#5eb88d", "#d8aa5a", "#d16d73", "#7f9cf5", "#6fd0c4
 document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
   bindActions();
+  syncRangeSelectorVisibility();
   refreshPage();
 });
 
@@ -23,6 +24,7 @@ function bindNavigation() {
       state.page = button.dataset.page;
       document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
+      syncRangeSelectorVisibility();
       refreshPage();
     });
   });
@@ -55,10 +57,7 @@ function bindActions() {
 }
 
 async function refreshPage({ showLoading = true } = {}) {
-  const rangeSelector = document.querySelector(".range-selector");
-  if (rangeSelector) {
-    rangeSelector.style.display = state.page === "realtime" ? "none" : "";
-  }
+  syncRangeSelectorVisibility();
   clearLiveRefresh();
   const requestKey = currentRequestKey();
   if (state.loadingKey === requestKey) {
@@ -112,6 +111,16 @@ async function refreshPage({ showLoading = true } = {}) {
       state.loadingKey = null;
     }
   }
+}
+
+function syncRangeSelectorVisibility() {
+  const rangeSelector = document.querySelector(".range-selector");
+  if (!rangeSelector) {
+    return;
+  }
+  const shouldShow = state.page === "historical" || state.page === "tokens";
+  rangeSelector.hidden = !shouldShow;
+  rangeSelector.setAttribute("aria-hidden", shouldShow ? "false" : "true");
 }
 
 function clearLiveRefresh() {
@@ -368,7 +377,7 @@ function renderTokens(payload) {
     <section class="panel">
       <div class="panel-header">
         <div>
-          <h2>Daily End-of-Day Token Records</h2>
+          <h2>Daily Archived Token Totals</h2>
           <p class="panel-subtitle">${escapeHtml(payload.selection_description)}</p>
         </div>
       </div>

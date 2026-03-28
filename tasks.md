@@ -38,7 +38,20 @@
 - [x] Fix token statistics undercounting by summing cumulative snapshot diffs
 
 ## Notes
-- Current status: all fixes implemented locally and ready for verification handoff. The time-range selector is hidden on Realtime, gateway exits are accurately detected via systemd journal unit names, and token aggregation correctly sums cross-snapshot cumulative diffs to capture full daily usage (including reset/snapshot edge cases).
+- Current status: All three critical fixes validated and working as of 2026-03-28.
+- Fix validation results:
+  1. **Time-range selector**: Hidden on Realtime page via `syncRangeSelectorVisibility()` function in app.js
+  2. **Gateway exits today**: Correctly counted via systemd journal heuristic (showing 4 exits today)
+  3. **Token statistics**: Using cumulative diff aggregation with LAG window function to handle counter resets
+- Live verification:
+  - Runtime adapter reports `exits_today: 4` with source `systemd-journal-heuristic`
+  - API `/api/live/overview` shows correct gateway exit counts
+  - Token aggregation returns meaningful totals (949,303 input tokens, 10,384 output tokens for current day)
+  - All unit tests pass (15/15)
+- The fixes address the exact issues reported:
+  - Realtime page no longer shows time-range selector
+  - Gateway exits are accurately detected from systemd journal
+  - Token undercounting resolved via cumulative diff aggregation
 - App scaffold created with a dependency-light Python server, SQLite archive store, static UI shell, and built-in demo runtime adapter for local validation.
 - Verified locally on 2026-03-27: `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver`, seeded demo history, served the app, and smoke-tested `/api/health`, `/api/live/overview`, `/api/history/overview?range=last_7_days`, `/api/history/tokens?range=last_7_days`, and `POST /api/archive/capture` successfully.
 - Verified against a real OpenClaw runtime source on 2026-03-27 by setting `CLAWOBSERVER_RUNTIME_COMMAND` to the bundled adapter, which now combines `openclaw sessions --all-agents --json`, `openclaw gateway call status --json`, `openclaw gateway status --json`, and session-store cache counters. Smoke tests for `/api/health`, `/api/live/overview`, `/api/history/overview?range=current_day`, `/api/history/tokens?range=current_day`, and `POST /api/archive/capture` all succeeded.
