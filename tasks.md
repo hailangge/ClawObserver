@@ -2,9 +2,10 @@
 
 ## In progress
 - [x] Confirm scope from `requirements.md` and `design.md`
-- [x] Rebuild the Realtime scene to match `docs/reference-ui-viz.jpg` with fixed overlay anchors (`clawobserver/static/app.js`, `clawobserver/static/styles.css`, `clawobserver/static/scene-role-styles.json`)
-- [x] Wire reference-image-driven scene assets / background treatment and document tooltip hook behavior (`clawobserver/static/*`, `README.md` if needed)
-- [x] Run browser/build validation for the reference-matched scene and commit the result
+- [x] Shrink and relayout the Realtime office scene so it renders at roughly half-scale with right-side supporting controls/content (`clawobserver/static/app.js`, `clawobserver/static/styles.css`)
+- [x] Enforce straight-row hanging nameplate alignment and idle-lounge separation with empty-desk zero-task tags (`clawobserver/static/app.js`, `clawobserver/static/styles.css`, `clawobserver/static/scene-role-styles.json`)
+- [x] Expand workstation hover bubbles to include timestamp, latest user input, model, and thinking level (`clawobserver/static/app.js`, backend/runtime payload files, tests`)
+- [x] Run browser/build validation for the owner adjustment pass and commit the result
 - [x] Scaffold the application structure for ClawObserver
 - [x] Implement live runtime data collection for realtime overview
 - [x] Implement archive schema and 30-minute snapshot pipeline
@@ -44,7 +45,14 @@
 - [x] Validate the rebuilt Realtime scene in a real browser render and commit the correction
 
 ## Notes
-- Current status: Realtime scene correction completed on 2026-05-06 with the central visualization area restored as the primary deep-tech office/work scene.
+- Current status: owner adjustment pass completed on 2026-05-06 with a half-scale scene stage, right-side sidecar layout, normalized row-aligned workstation tags, distinct lounge idle avatars, empty-desk zero-task tags, and richer hover bubble fields (timestamp/input/model/thinking level).
+- Validation evidence for the adjustment pass:
+  - `node --check clawobserver/static/app.js`
+  - `python3 -m compileall clawobserver scripts tests`
+  - `python3 -m unittest tests.test_runtime tests.test_archive tests.test_openclaw_runtime_adapter -v`
+  - Live `/api/health` check against `python3 -m clawobserver serve`
+  - Headless Chrome screenshot: `/tmp/clawobserver-adjustments.png`
+  - Headless DOM inspection confirmed `.scene-layout` + `.scene-sidecar`, six `.scene-idle-avatar` lounge occupants, row-1 tags all at `top:10.3%`, row-2 tags all at `top:38.8%`, and eight visible zero-task workstation tags.
 - Fix validation results:
   1. **Time-range selector**: Hidden on Realtime page via `syncRangeSelectorVisibility()` function in app.js
   2. **Gateway exits today**: Correctly counted via systemd journal heuristic (showing 4 exits today)
@@ -87,3 +95,4 @@
 - Reference-scene rebuild updated on 2026-05-06: the Realtime scene now uses `clawobserver/static/assets/reference-scene-base.jpg` as the office/workspace base layer and keeps fixed hotspot/tag anchors aligned to the owner reference image while injecting live agent name and current parallel-task proxy text.
 - Tooltip behavior remains implemented through `data-scene-tooltip` hooks on both the fixed character hotspots and the hanging tags, with deferred placeholders still shown when runtime fields like `ThinkingLevel` or latest user input are absent.
 - Final reference-scene validation completed on 2026-05-06 with `node --check clawobserver/static/app.js`, `python3 -m compileall clawobserver`, `python3 -m unittest tests.test_runtime tests.test_archive -v`, `curl http://127.0.0.1:8420/api/health`, `python3` live-overview fetch verification against `http://127.0.0.1:8420/api/live/overview`, and a headless Chrome smoke render saved to `/tmp/clawobserver-reference-scene-smoke-4.png`.
+- Owner adjustment follow-up on 2026-05-06: the richer tooltip/runtime tests now expect `latest_user_input_timestamp` to follow the repo's existing local-ISO normalization behavior via the adapter timestamp helper instead of preserving the raw `+00:00` input string.

@@ -96,21 +96,41 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
                     "agent_name": "planner",
                     "active_sessions": planner_active,
                     "total_sessions": planner_active + 8,
+                    "role_style_key": "planner",
+                    "thinking_level": "High",
+                    "latest_user_input": "Review the rollout checklist and assign the next blocker.",
+                    "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 8, 0)).isoformat(),
+                    "session_model": "gpt-5.4",
                 },
                 {
                     "agent_name": "researcher",
                     "active_sessions": researcher_active,
                     "total_sessions": researcher_active + 7,
+                    "role_style_key": "researcher",
+                    "thinking_level": "Medium",
+                    "latest_user_input": "Summarize the latest operator notes for the queue-depth anomaly.",
+                    "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 14, 0)).isoformat(),
+                    "session_model": "gpt-5.4",
                 },
                 {
                     "agent_name": "operator",
                     "active_sessions": operator_active,
                     "total_sessions": operator_active + 6,
+                    "role_style_key": "operator",
+                    "thinking_level": "Low",
+                    "latest_user_input": "Keep the gateway service stable and surface any new restarts immediately.",
+                    "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 5, 0)).isoformat(),
+                    "session_model": "gpt-5.4-coder",
                 },
                 {
                     "agent_name": "reviewer",
                     "active_sessions": reviewer_active,
                     "total_sessions": reviewer_active + 5,
+                    "role_style_key": "reviewer",
+                    "thinking_level": "High",
+                    "latest_user_input": "Check the final patch for regressions and operator-facing UX drift.",
+                    "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 21, 0)).isoformat(),
+                    "session_model": "gpt-5.4",
                 },
             ],
             "by_state": [
@@ -203,6 +223,16 @@ class LiveRuntimeAdapter:
                     latest_user_input=(
                         str(item.get("latest_user_input") or item.get("latestUserInput")).strip()
                         if item.get("latest_user_input") or item.get("latestUserInput")
+                        else None
+                    ),
+                    latest_user_input_timestamp=(
+                        str(item.get("latest_user_input_timestamp") or item.get("latestUserInputTimestamp")).strip()
+                        if item.get("latest_user_input_timestamp") or item.get("latestUserInputTimestamp")
+                        else None
+                    ),
+                    session_model=(
+                        str(item.get("session_model") or item.get("sessionModel") or item.get("model")).strip()
+                        if item.get("session_model") or item.get("sessionModel") or item.get("model")
                         else None
                     ),
                 )

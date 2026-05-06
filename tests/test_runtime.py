@@ -109,6 +109,8 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
                             "role_style_key": "planner",
                             "thinking_level": "Deep",
                             "latest_user_input": "Investigate rollout latency",
+                            "latest_user_input_timestamp": "2026-03-27T11:58:00+00:00",
+                            "session_model": "gpt-5.4",
                         }
                     ],
                     "by_type": [
@@ -125,6 +127,8 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
         self.assertEqual(snapshot.agent_sessions[0].role_style_key, "planner")
         self.assertEqual(snapshot.agent_sessions[0].thinking_level, "Deep")
         self.assertEqual(snapshot.agent_sessions[0].latest_user_input, "Investigate rollout latency")
+        self.assertEqual(snapshot.agent_sessions[0].latest_user_input_timestamp, "2026-03-27T11:58:00+00:00")
+        self.assertEqual(snapshot.agent_sessions[0].session_model, "gpt-5.4")
 
 
 if __name__ == "__main__":

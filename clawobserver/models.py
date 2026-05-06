@@ -19,6 +19,8 @@ class AgentSessionSample:
     role_style_key: str | None = None
     thinking_level: str | None = None
     latest_user_input: str | None = None
+    latest_user_input_timestamp: str | None = None
+    session_model: str | None = None
 
 
 @dataclass(slots=True)

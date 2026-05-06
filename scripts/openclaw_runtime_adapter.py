@@ -120,6 +120,52 @@ def coerce_timestamp(value: Any) -> datetime | None:
     return None
 
 
+def isoformat_or_none(value: Any) -> str | None:
+    moment = coerce_timestamp(value)
+    return moment.isoformat() if moment is not None else None
+
+
+def extract_latest_user_message(session: dict[str, Any], store_entry: dict[str, Any], recent_entry: dict[str, Any]) -> tuple[str | None, str | None]:
+    candidates: list[tuple[str | None, str | None]] = []
+    for source in (session, recent_entry, store_entry):
+        if not isinstance(source, dict):
+            continue
+        direct_text = _first_non_none(
+            source.get("latestUserInput"),
+            source.get("latest_user_input"),
+            source.get("latestUserMessage"),
+            source.get("latest_user_message"),
+        )
+        direct_timestamp = _first_non_none(
+            source.get("latestUserInputTimestamp"),
+            source.get("latest_user_input_timestamp"),
+            source.get("latestUserMessageTimestamp"),
+            source.get("latest_user_message_timestamp"),
+        )
+        if isinstance(direct_text, str) and direct_text.strip():
+            candidates.append((direct_text.strip(), isoformat_or_none(direct_timestamp)))
+
+        history = source.get("messages") or source.get("history") or source.get("events")
+        if isinstance(history, list):
+            for item in reversed(history):
+                if not isinstance(item, dict):
+                    continue
+                role = str(item.get("role") or item.get("sender") or item.get("type") or "").lower()
+                if role not in {"user", "human", "input"}:
+                    continue
+                text = _first_non_none(item.get("content"), item.get("text"), item.get("message"), item.get("value"))
+                if isinstance(text, list):
+                    text = " ".join(str(part).strip() for part in text if str(part).strip())
+                if isinstance(text, str) and text.strip():
+                    timestamp = _first_non_none(item.get("timestamp"), item.get("ts"), item.get("createdAt"), item.get("created_at"))
+                    candidates.append((text.strip(), isoformat_or_none(timestamp)))
+                    break
+    for text, timestamp in candidates:
+        if text:
+            return text, timestamp
+    return None, None
+
+
 def session_updated_on_date(
     *,
     session: dict[str, Any],
@@ -328,7 +374,17 @@ def build_payload_from_sources(
         if isinstance(item, dict) and item.get("key")
     }
 
-    per_agent: dict[str, dict[str, int]] = defaultdict(lambda: {"active": 0, "total": 0})
+    per_agent: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {
+            "active": 0,
+            "total": 0,
+            "role_style_key": None,
+            "thinking_level": None,
+            "latest_user_input": None,
+            "latest_user_input_timestamp": None,
+            "session_model": None,
+        }
+    )
     provider_model_channel: dict[tuple[str, str, str], dict[str, int]] = defaultdict(
         lambda: {
             "input": 0,
@@ -365,6 +421,34 @@ def build_payload_from_sources(
         provider = session.get("modelProvider") or store_entry.get("modelProvider") or "unknown"
         model = session.get("model") or store_entry.get("model") or "unknown"
         channel = session.get("kind") or "default"
+        latest_user_input, latest_user_input_timestamp = extract_latest_user_message(session, store_entry, recent_entry)
+        thinking_level = _first_non_none(
+            session.get("thinkingLevel"),
+            session.get("thinking_level"),
+            recent_entry.get("thinkingLevel"),
+            recent_entry.get("thinking_level"),
+            store_entry.get("thinkingLevel"),
+            store_entry.get("thinking_level"),
+        )
+        role_style_key = _first_non_none(
+            session.get("roleStyleKey"),
+            session.get("role_style_key"),
+            recent_entry.get("roleStyleKey"),
+            recent_entry.get("role_style_key"),
+            store_entry.get("roleStyleKey"),
+            store_entry.get("role_style_key"),
+        )
+        agent_bucket = per_agent[str(agent)]
+        if role_style_key and not agent_bucket["role_style_key"]:
+            agent_bucket["role_style_key"] = str(role_style_key)
+        if thinking_level and not agent_bucket["thinking_level"]:
+            agent_bucket["thinking_level"] = str(thinking_level)
+        if latest_user_input and not agent_bucket["latest_user_input"]:
+            agent_bucket["latest_user_input"] = str(latest_user_input)
+        if latest_user_input_timestamp and not agent_bucket["latest_user_input_timestamp"]:
+            agent_bucket["latest_user_input_timestamp"] = str(latest_user_input_timestamp)
+        if model and not agent_bucket["session_model"]:
+            agent_bucket["session_model"] = str(model)
 
         cache_metrics_present = any(
             source.get(field) is not None
@@ -441,6 +525,11 @@ def build_payload_from_sources(
                     "agent_name": agent,
                     "active_sessions": counts["active"],
                     "total_sessions": counts["total"],
+                    "role_style_key": counts.get("role_style_key"),
+                    "thinking_level": counts.get("thinking_level"),
+                    "latest_user_input": counts.get("latest_user_input"),
+                    "latest_user_input_timestamp": counts.get("latest_user_input_timestamp"),
+                    "session_model": counts.get("session_model"),
                 }
                 for agent, counts in sorted(per_agent.items())
             ],

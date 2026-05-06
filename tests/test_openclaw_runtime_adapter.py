@@ -45,6 +45,7 @@ class OpenClawRuntimeAdapterTests(unittest.TestCase):
                             "ageMs": 500,
                             "modelProvider": "openai",
                             "model": "gpt-5.4",
+                            "thinkingLevel": "High",
                             "kind": "direct",
                             "inputTokens": 100,
                             "outputTokens": 40,
@@ -65,7 +66,18 @@ class OpenClawRuntimeAdapterTests(unittest.TestCase):
                 gateway_status={"service": {"runtime": {"status": "running"}}},
                 now=datetime.fromisoformat("2026-03-27T12:00:00+00:00"),
                 store_entries={
-                    "agent:main:main": {"cacheRead": 30, "cacheWrite": 10},
+                    "agent:main:main": {
+                        "cacheRead": 30,
+                        "cacheWrite": 10,
+                        "roleStyleKey": "operator",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": "Check whether the delivery queue is draining normally.",
+                                "timestamp": "2026-03-27T11:57:00+00:00",
+                            }
+                        ],
+                    },
                     "agent:main:cron:abc:run:def": {"cacheRead": 5, "cacheWrite": 0},
                 },
                 delivery_queue_dir=delivery_queue_dir,
@@ -88,6 +100,17 @@ class OpenClawRuntimeAdapterTests(unittest.TestCase):
         self.assertEqual(payload["tokens"][0]["cache_read_tokens"], 35)
         self.assertEqual(payload["tokens"][0]["cache_write_tokens"], 10)
         self.assertTrue(payload["tokens"][0]["cache_metrics_present"])
+        self.assertEqual(payload["sessions"]["by_agent"][0]["role_style_key"], "operator")
+        self.assertEqual(payload["sessions"]["by_agent"][0]["thinking_level"], "High")
+        self.assertEqual(
+            payload["sessions"]["by_agent"][0]["latest_user_input"],
+            "Check whether the delivery queue is draining normally.",
+        )
+        self.assertEqual(
+            payload["sessions"]["by_agent"][0]["latest_user_input_timestamp"],
+            adapter.isoformat_or_none("2026-03-27T11:57:00+00:00"),
+        )
+        self.assertEqual(payload["sessions"]["by_agent"][0]["session_model"], "gpt-5.4")
 
     def test_build_payload_falls_back_to_runtime_backlog_when_delivery_queue_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

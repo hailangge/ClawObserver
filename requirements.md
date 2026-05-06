@@ -198,9 +198,14 @@ ClawObserver is acceptable when all of the following are true:
 14. The central Realtime visualization must visually match the owner-provided reference image at `/mnt/data/repositories/ClawObserver/docs/reference-ui-viz.jpg` as closely as practical, using that image as the single source of truth for scene layout, palette, proportions, background treatment, and office/workspace visual language.
 15. The implementation must preserve fixed reference-image character/tag positions while embedding dynamic overlays at those exact spots for agent name and current parallel task count.
 16. Scene role/task styling must be driven by a config file or component contract rather than hardcoded per-agent presentation logic.
-17. If hover session details such as agent name / ThinkingLevel / latest user input cannot be completed yet, the code must either implement the tooltip or document the explicit hook/deferred location rather than silently omitting it.
-18. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
-19. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
+17. The owner adjustment pass must shrink the entire Realtime office scene to roughly half of the prior visual scale while preserving proportions across the scene container, nameplates, spacing, and agent figures.
+18. After shrinking, any available horizontal space should be used to move secondary controls/information to the right side so the office scene remains the primary focal area.
+19. All hanging agent nameplates must share a perfectly aligned horizontal baseline per row with a consistent vertical offset from the corresponding workstation anchor.
+20. Idle agents must render in a visually distinct lounge/rest zone using dedicated idle/rest artwork, arranged left-to-right in that lounge, while their original workstation areas remain visually empty but retain hanging nameplates with task count `0`.
+21. Hovering a workstation zone must show a bubble containing the latest user-input timestamp, latest user-input content, model, and thinking level for that agent/session; the bubble must follow cursor/agent positioning without breaking layout.
+22. If hover session details such as agent name / ThinkingLevel / latest user input cannot be completed yet, the code must either implement the tooltip or document the explicit hook/deferred location rather than silently omitting it.
+23. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
+24. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
 
 ## 10. Open questions
 

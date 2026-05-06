@@ -35,6 +35,8 @@ class ClawObserverApp:
                     "role_style_key": item.role_style_key,
                     "thinking_level": item.thinking_level,
                     "latest_user_input": item.latest_user_input,
+                    "latest_user_input_timestamp": item.latest_user_input_timestamp,
+                    "session_model": item.session_model,
                 }
                 for item in snapshot.agent_sessions
             ],
