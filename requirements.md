@@ -195,8 +195,12 @@ ClawObserver is acceptable when all of the following are true:
 11. The scene shows each agent's current work state visually, with hanging tags/nameplates that display agent name plus current task count.
 12. Scene role/agent presentation is configurable through components/config data rather than hardcoded one-off styling.
 13. If hover session details such as ThinkingLevel or latest user input are not yet available from the runtime source, the UI explicitly labels them as deferred placeholders rather than silently omitting them.
-14. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
-15. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
+14. The central Realtime visualization must visually match the owner-provided reference image at `/mnt/data/repositories/ClawObserver/docs/reference-ui-viz.jpg` as closely as practical, using that image as the single source of truth for scene layout, palette, proportions, background treatment, and office/workspace visual language.
+15. The implementation must preserve fixed reference-image character/tag positions while embedding dynamic overlays at those exact spots for agent name and current parallel task count.
+16. Scene role/task styling must be driven by a config file or component contract rather than hardcoded per-agent presentation logic.
+17. If hover session details such as agent name / ThinkingLevel / latest user input cannot be completed yet, the code must either implement the tooltip or document the explicit hook/deferred location rather than silently omitting it.
+18. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
+19. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
 
 ## 10. Open questions
 

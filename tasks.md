@@ -2,6 +2,9 @@
 
 ## In progress
 - [x] Confirm scope from `requirements.md` and `design.md`
+- [x] Rebuild the Realtime scene to match `docs/reference-ui-viz.jpg` with fixed overlay anchors (`clawobserver/static/app.js`, `clawobserver/static/styles.css`, `clawobserver/static/scene-role-styles.json`)
+- [x] Wire reference-image-driven scene assets / background treatment and document tooltip hook behavior (`clawobserver/static/*`, `README.md` if needed)
+- [x] Run browser/build validation for the reference-matched scene and commit the result
 - [x] Scaffold the application structure for ClawObserver
 - [x] Implement live runtime data collection for realtime overview
 - [x] Implement archive schema and 30-minute snapshot pipeline
@@ -80,3 +83,7 @@
 - The restored Realtime scene uses `clawobserver/static/scene-role-styles.json` for configurable role/agent presentation and shows hanging nameplates with agent name plus current task-count proxy (`active_sessions`).
 - Optional hover session details remain explicit: the scene tooltip shows role plus deferred placeholder text for `ThinkingLevel` and latest user input when the runtime source does not expose those fields yet.
 - Verified the corrected Realtime scene on 2026-05-06 with `node --check clawobserver/static/app.js`, `python3 -m unittest tests.test_runtime tests.test_archive -v`, live HTTP fetches against the local server, and a real headless Chrome screenshot render of `http://127.0.0.1:8420` saved as `clawobserver-realtime-scene.png`.
+- Owner follow-up at 2026-05-06 14:39 requires an even stricter image-matched rebuild against `docs/reference-ui-viz.jpg`: use the reference as the single source of truth, preserve hanging-tag positions, keep the blue deep-tech office feel, and validate with both syntax/build checks and a real browser smoke test before committing.
+- Reference-scene rebuild updated on 2026-05-06: the Realtime scene now uses `clawobserver/static/assets/reference-scene-base.jpg` as the office/workspace base layer and keeps fixed hotspot/tag anchors aligned to the owner reference image while injecting live agent name and current parallel-task proxy text.
+- Tooltip behavior remains implemented through `data-scene-tooltip` hooks on both the fixed character hotspots and the hanging tags, with deferred placeholders still shown when runtime fields like `ThinkingLevel` or latest user input are absent.
+- Final reference-scene validation completed on 2026-05-06 with `node --check clawobserver/static/app.js`, `python3 -m compileall clawobserver`, `python3 -m unittest tests.test_runtime tests.test_archive -v`, `curl http://127.0.0.1:8420/api/health`, `python3` live-overview fetch verification against `http://127.0.0.1:8420/api/live/overview`, and a headless Chrome smoke render saved to `/tmp/clawobserver-reference-scene-smoke-4.png`.

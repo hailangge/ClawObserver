@@ -302,9 +302,11 @@ Avoid:
 - render visible Y-axis numeric labels
 - support shared mouse-hover tooltips on historical charts so hovering an X bucket reveals every series value at that bucket
 - keep the Realtime page's central visualization region as a dedicated 3D-like office/work scene rather than downgrading it to ordinary summary panels
-- use blue/deep-tech lighting, layered desk/lounge zones, and hanging nameplates so agent work state remains visually legible in the main scene
+- treat `/mnt/data/repositories/ClawObserver/docs/reference-ui-viz.jpg` as the scene source of truth: extract/crop its background as the base scene and mirror its layout, proportions, palette, and hanging-tag placement as closely as practical
+- preserve fixed character/nameplate anchor positions derived from the reference image, then render dynamic overlays at those exact anchors for agent name and current parallel task count
+- use blue/deep-tech lighting and office/workspace depth from the reference rather than abstract geometric substitutes
 - drive role/agent appearance through external config plus renderer components so presentation can be restyled without rewriting placement logic
-- when optional session-detail hover data is unavailable, show explicit deferred placeholders in the scene tooltip instead of silently suppressing that surface
+- when optional session-detail hover data is unavailable, show explicit deferred placeholders in the scene tooltip instead of silently suppressing that surface, or document the hook point if implementation is deferred
 
 ## 8. Operator documentation expectations
 

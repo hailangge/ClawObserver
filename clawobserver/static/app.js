@@ -25,6 +25,26 @@ const defaultSceneRoleStyles = {
   agents: {},
 };
 
+const referenceSceneLayout = {
+  activeZoneLabel: { top: 2.8, left: 2.4, width: 13.4, height: 8.4 },
+  idleZoneLabel: { top: 67.3, left: 1.2, width: 12.2, height: 8.2 },
+  activeSlots: [
+    { character: { top: 14.6, left: 4.5, width: 15.2, height: 27.8 }, tag: { top: 10.3, left: 4.3, width: 14.8, height: 5.2 } },
+    { character: { top: 14.3, left: 22.4, width: 15.2, height: 28.0 }, tag: { top: 10.3, left: 22.2, width: 15.3, height: 5.2 } },
+    { character: { top: 14.0, left: 40.8, width: 15.0, height: 28.0 }, tag: { top: 10.3, left: 40.2, width: 15.9, height: 5.2 } },
+    { character: { top: 14.3, left: 59.0, width: 15.2, height: 28.0 }, tag: { top: 10.3, left: 58.4, width: 15.7, height: 5.2 } },
+    { character: { top: 14.3, left: 77.0, width: 15.4, height: 28.0 }, tag: { top: 10.3, left: 76.8, width: 16.0, height: 5.2 } },
+    { character: { top: 43.3, left: 4.8, width: 15.2, height: 28.2 }, tag: { top: 38.8, left: 3.4, width: 17.0, height: 5.4 } },
+    { character: { top: 43.2, left: 22.4, width: 15.2, height: 28.0 }, tag: { top: 38.8, left: 22.0, width: 15.7, height: 5.4 } },
+    { character: { top: 43.5, left: 40.9, width: 15.0, height: 27.8 }, tag: { top: 38.8, left: 40.5, width: 15.6, height: 5.4 } },
+    { character: { top: 43.0, left: 59.2, width: 15.2, height: 28.2 }, tag: { top: 38.8, left: 58.8, width: 15.1, height: 5.4 } },
+    { character: { top: 43.2, left: 77.0, width: 15.2, height: 28.0 }, tag: { top: 38.8, left: 76.8, width: 15.8, height: 5.4 } },
+  ],
+  idleSlots: [
+    { character: { top: 57.6, left: 18.5, width: 16.4, height: 31.5 }, tag: { top: 77.2, left: 17.5, width: 18.1, height: 4.9 } },
+  ],
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
   bindActions();
@@ -320,11 +340,18 @@ function normalizeSceneRoleStyles(payload) {
 }
 
 function buildRealtimeSceneModel(payload, activeAgents, idleAgents, sceneRoleStyles) {
+  const rankedRoster = [...payload.agent_sessions].sort((left, right) =>
+    right.active_sessions - left.active_sessions ||
+    right.total_sessions - left.total_sessions ||
+    String(left.agent_name).localeCompare(String(right.agent_name))
+  );
+  const loungeSource = idleAgents[0] || null;
   return {
-    activeAgents: activeAgents.slice(0, 6).map((agent, index) => createSceneAgent(agent, index, "active", sceneRoleStyles)),
-    idleAgents: idleAgents.slice(0, 4).map((agent, index) => createSceneAgent(agent, index, "idle", sceneRoleStyles)),
-    activeOverflow: Math.max(activeAgents.length - 6, 0),
-    idleOverflow: Math.max(idleAgents.length - 4, 0),
+    officeAgents: rankedRoster.slice(0, referenceSceneLayout.activeSlots.length).map((agent, index) => createSceneAgent(agent, index, "active", sceneRoleStyles)),
+    loungeAgent: loungeSource ? createSceneAgent(loungeSource, 0, "idle", sceneRoleStyles) : null,
+    activeWorkerCount: activeAgents.length,
+    restingWorkerCount: idleAgents.length,
+    rosterOverflow: Math.max(rankedRoster.length - referenceSceneLayout.activeSlots.length, 0),
     captureStatus: payload.capture_status,
   };
 }
@@ -369,66 +396,75 @@ function renderRealtimeScene(model) {
     <div class="scene-board">
       <div class="scene-header-strip">
         <span class="scene-header-chip">Capture ${escapeHtml(String(model.captureStatus))}</span>
-        <span class="scene-header-chip">${formatNumber(model.activeAgents.length)} active workers</span>
-        <span class="scene-header-chip">${formatNumber(model.idleAgents.length)} resting</span>
+        <span class="scene-header-chip">${formatNumber(model.activeWorkerCount)} active workers</span>
+        <span class="scene-header-chip">${formatNumber(model.restingWorkerCount)} resting</span>
       </div>
       <div class="scene-room">
-        <div class="scene-room-glow scene-room-glow-left"></div>
-        <div class="scene-room-glow scene-room-glow-right"></div>
-        <div class="scene-lounge-zone">
-          <div class="scene-zone-title">Break lounge</div>
-          <div class="scene-couch"></div>
-          <div class="scene-coffee-table"></div>
-          ${model.idleAgents.map((agent, index) => renderSceneAgent(agent, index, "idle")).join("")}
-          ${model.idleOverflow ? `<div class="scene-overflow-pill">+${formatNumber(model.idleOverflow)} more idle</div>` : ""}
-        </div>
-        <div class="scene-work-zone">
-          <div class="scene-zone-title">Blue tech desk row</div>
-          <div class="scene-desk-row">
-            ${model.activeAgents.map((agent, index) => renderSceneDesk(agent, index)).join("")}
-          </div>
-          ${model.activeOverflow ? `<div class="scene-overflow-pill scene-overflow-pill-active">+${formatNumber(model.activeOverflow)} more active</div>` : ""}
-        </div>
+        <img class="scene-reference-base" src="/assets/assets/reference-scene-base.jpg" alt="" aria-hidden="true" />
+        ${referenceSceneLayout.activeSlots
+          .map((slot, index) => {
+            const agent = model.officeAgents[index];
+            return agent ? renderReferenceActiveSlot(agent, slot) : "";
+          })
+          .join("")}
+        ${referenceSceneLayout.idleSlots
+          .map((slot, index) => {
+            const agent = index === 0 ? model.loungeAgent : null;
+            return agent ? renderReferenceIdleSlot(agent, slot) : "";
+          })
+          .join("")}
+        ${model.rosterOverflow ? `<div class="scene-overflow-pill scene-overflow-pill-active">+${formatNumber(model.rosterOverflow)} more tracked</div>` : ""}
       </div>
     </div>
   `;
 }
 
-function renderSceneDesk(agent, index) {
+function renderReferenceActiveSlot(agent, slot) {
+  const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
   return `
-    <article class="scene-desk-card" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-outfit:${escapeAttribute(agent.roleStyle.outfit)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)}; --scene-hair:${escapeAttribute(agent.roleStyle.hair)}; --scene-skin:${escapeAttribute(agent.roleStyle.skin)};" data-scene-tooltip='${escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)))}'>
-      <div class="scene-nameplate">
-        <span class="scene-nameplate-name">${escapeHtml(agent.name)}</span>
-        <span class="scene-nameplate-count">${escapeHtml(formatTaskCount(agent.taskCount))}</span>
+    <article class="scene-reference-slot scene-reference-slot-active" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)};">
+      <button
+        type="button"
+        class="scene-reference-hotspot scene-reference-hotspot-active"
+        style="${styleFromRect(slot.character)}"
+        data-scene-tooltip='${tooltipPayload}'
+        aria-label="${escapeAttribute(buildSceneAriaLabel(agent, "active desk"))}"
+      ></button>
+      <div class="scene-reference-tag" style="${styleFromRect(slot.tag)}" data-scene-tooltip='${tooltipPayload}'>
+        <span class="scene-reference-tag-text">${escapeHtml(formatSceneTagText(agent))}</span>
       </div>
-      <div class="scene-monitor-stack">
-        <div class="scene-monitor"></div>
-        <div class="scene-monitor scene-monitor-small"></div>
-      </div>
-      ${renderSceneAgent(agent, index, "active")}
-      <div class="scene-role-chip">${escapeHtml(agent.roleStyle.label)}</div>
     </article>
   `;
 }
 
-function renderSceneAgent(agent, index, mode) {
+function renderReferenceIdleSlot(agent, slot) {
+  const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
   return `
-    <article class="scene-agent scene-agent-${escapeAttribute(mode)}" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-outfit:${escapeAttribute(agent.roleStyle.outfit)}; --scene-hair:${escapeAttribute(agent.roleStyle.hair)}; --scene-skin:${escapeAttribute(agent.roleStyle.skin)};" data-scene-tooltip='${escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)))}'>
-      <div class="scene-agent-hanger">
-        <span class="scene-agent-badge">${escapeHtml(agent.roleStyle.badge)}</span>
-      </div>
-      <div class="scene-agent-body-wrap">
-        <div class="scene-agent-head"></div>
-        <div class="scene-agent-hair"></div>
-        <div class="scene-agent-body"></div>
-        <div class="scene-agent-arm scene-agent-arm-left"></div>
-        <div class="scene-agent-arm scene-agent-arm-right"></div>
-        <div class="scene-agent-leg scene-agent-leg-left"></div>
-        <div class="scene-agent-leg scene-agent-leg-right"></div>
-        ${mode === "idle" ? '<div class="scene-agent-mug"></div>' : '<div class="scene-agent-keyboard"></div>'}
+    <article class="scene-reference-slot scene-reference-slot-idle" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)};">
+      <button
+        type="button"
+        class="scene-reference-hotspot scene-reference-hotspot-idle"
+        style="${styleFromRect(slot.character)}"
+        data-scene-tooltip='${tooltipPayload}'
+        aria-label="${escapeAttribute(buildSceneAriaLabel(agent, "idle lounge seat"))}"
+      ></button>
+      <div class="scene-reference-tag scene-reference-tag-idle" style="${styleFromRect(slot.tag)}" data-scene-tooltip='${tooltipPayload}'>
+        <span class="scene-reference-tag-text">${escapeHtml(formatSceneTagText(agent))}</span>
       </div>
     </article>
   `;
+}
+
+function styleFromRect(rect) {
+  return `top:${rect.top}%;left:${rect.left}%;width:${rect.width}%;height:${rect.height}%;`;
+}
+
+function formatSceneTagText(agent) {
+  return `${agent.name} (${formatNumber(agent.taskCount)})`;
+}
+
+function buildSceneAriaLabel(agent, areaLabel) {
+  return `${agent.name}, ${formatTaskCount(agent.taskCount)}, ${areaLabel}`;
 }
 
 function buildSceneTooltipPayload(agent) {

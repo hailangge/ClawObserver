@@ -35,7 +35,7 @@ The current implementation covers the approved monitoring scope:
 - token statistics based on daily end-of-day archive selection, including cache-hit ratio when the runtime exposes cache counters cleanly
 - local SQLite storage with no external database dependency
 - host-native user-level `systemd` deployment
-- branded header artwork, a central deep-tech realtime agent scene, and operator-oriented historical charts with visible Y-axis labels plus hover tooltips
+- branded header artwork, a central deep-tech realtime agent scene anchored to the owner reference image, and operator-oriented historical charts with visible Y-axis labels plus hover tooltips
 
 The internal scope documents remain in this repo:
 
@@ -181,9 +181,9 @@ ClawObserver resolves live runtime data in this order:
 
 ## Realtime scene configuration
 
-The Realtime page keeps a central visualization area as the primary agent-work scene. It stays blue/deep-tech and renders a lightweight 3D-like office: active agents at desks, idle agents in the lounge, hanging nameplates with agent name plus current task count, and config-driven role styling.
+The Realtime page keeps a central visualization area as the primary agent-work scene. It stays blue/deep-tech and uses the owner reference image in `docs/reference-ui-viz.jpg` as the visual source of truth for the office interior, desk layout, lounge area, and overall proportions. The shipped runtime scene uses a repo-local extracted background asset plus fixed overlay anchors for the active desk workers, the idle lounge worker, and the hanging nameplates.
 
-Scene role styling is loaded from `clawobserver/static/scene-role-styles.json` so role/agent presentation can be changed without hardcoding it into the renderer. Hover cards currently show role plus optional session fields (`ThinkingLevel`, latest user input). When the runtime source does not expose those fields yet, the UI renders an explicit deferred placeholder instead of silently omitting them.
+Scene role styling is loaded from `clawobserver/static/scene-role-styles.json` so tag accents and any per-agent visual overrides stay config-driven instead of hardcoded in the renderer. Hover cards are still wired through `data-scene-tooltip` hotspots on the fixed character/tag anchors and currently show role plus optional session fields (`ThinkingLevel`, latest user input). When the runtime source does not expose those fields yet, the UI renders an explicit deferred placeholder instead of silently omitting them.
 
 The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI adapter. It:
 
