@@ -16,6 +16,9 @@ class AgentSessionSample:
     agent_name: str
     active_sessions: int
     total_sessions: int
+    role_style_key: str | None = None
+    thinking_level: str | None = None
+    latest_user_input: str | None = None
 
 
 @dataclass(slots=True)

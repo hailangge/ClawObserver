@@ -32,6 +32,9 @@ class ClawObserverApp:
                     "agent_name": item.agent_name,
                     "active_sessions": item.active_sessions,
                     "total_sessions": item.total_sessions,
+                    "role_style_key": item.role_style_key,
+                    "thinking_level": item.thinking_level,
+                    "latest_user_input": item.latest_user_input,
                 }
                 for item in snapshot.agent_sessions
             ],

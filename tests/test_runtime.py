@@ -92,6 +92,40 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
         self.assertEqual(payload["queues"][1]["lane_name"], "delivery_queue_failed")
         self.assertIn("cache_read_tokens", payload["tokens"][0])
 
+    def test_normalize_payload_preserves_optional_agent_scene_fields(self) -> None:
+        snapshot = self.adapter._normalize_payload(
+            {
+                "captured_at": "2026-03-27T12:00:00+00:00",
+                "source_version": "test",
+                "capture_status": "ok",
+                "sessions": {
+                    "total": 2,
+                    "active": 1,
+                    "by_agent": [
+                        {
+                            "agent_name": "planner",
+                            "active_sessions": 1,
+                            "total_sessions": 2,
+                            "role_style_key": "planner",
+                            "thinking_level": "Deep",
+                            "latest_user_input": "Investigate rollout latency",
+                        }
+                    ],
+                    "by_type": [
+                        {"session_type": "persistent", "session_count": 2},
+                    ],
+                },
+                "queues": [],
+                "gateways": {"total": 1, "states": {"online": 1}},
+                "tokens": [],
+            },
+            fallback_time=datetime.fromisoformat("2026-03-27T12:00:00+00:00"),
+        )
+
+        self.assertEqual(snapshot.agent_sessions[0].role_style_key, "planner")
+        self.assertEqual(snapshot.agent_sessions[0].thinking_level, "Deep")
+        self.assertEqual(snapshot.agent_sessions[0].latest_user_input, "Investigate rollout latency")
+
 
 if __name__ == "__main__":
     unittest.main()

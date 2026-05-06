@@ -4,9 +4,26 @@ const state = {
   liveTimer: null,
   loadingKey: null,
   requestSequence: 0,
+  sceneRoleStyles: null,
 };
 
 const palette = ["#64c0ff", "#5eb88d", "#d8aa5a", "#d16d73", "#7f9cf5", "#6fd0c4"];
+const defaultSceneRoleStyles = {
+  defaultRoleStyle: "general_operator",
+  roles: {
+    general_operator: {
+      label: "General operator",
+      badge: "OP",
+      accent: "#64c0ff",
+      accentSoft: "rgba(100, 192, 255, 0.18)",
+      outfit: "#2c5f96",
+      deskGlow: "rgba(100, 192, 255, 0.24)",
+      hair: "#1f2b42",
+      skin: "#f0c7a1",
+    },
+  },
+  agents: {},
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
@@ -73,11 +90,14 @@ async function refreshPage({ showLoading = true } = {}) {
 
   try {
     if (state.page === "realtime") {
-      const payload = await fetchJson("/api/live/overview");
+      const [payload, sceneRoleStyles] = await Promise.all([
+        fetchJson("/api/live/overview"),
+        loadSceneRoleStyles(),
+      ]);
       if (requestSequence !== state.requestSequence) {
         return;
       }
-      renderRealtime(payload);
+      renderRealtime(payload, sceneRoleStyles);
       state.liveTimer = window.setTimeout(
         () => refreshPage({ showLoading: false }),
         payload.refresh_seconds * 1000
@@ -178,13 +198,19 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
-function renderRealtime(payload) {
+function renderRealtime(payload, sceneRoleStyles) {
   document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`Live · ${formatDateTime(payload.captured_at)}`);
   const root = document.getElementById("page-root");
   const totalGatewayCount = lookupGatewayCount(payload.gateways, "total");
   const gatewayExitCount = findGatewayCount(payload.gateways, "exits_today");
-  const activeAgents = payload.agent_sessions.filter((item) => item.active_sessions > 0);
+  const activeAgents = [...payload.agent_sessions]
+    .filter((item) => item.active_sessions > 0)
+    .sort((left, right) => right.active_sessions - left.active_sessions || String(left.agent_name).localeCompare(String(right.agent_name)));
+  const idleAgents = [...payload.agent_sessions]
+    .filter((item) => item.active_sessions === 0)
+    .sort((left, right) => right.total_sessions - left.total_sessions || String(left.agent_name).localeCompare(String(right.agent_name)));
+  const sceneModel = buildRealtimeSceneModel(payload, activeAgents, idleAgents, sceneRoleStyles);
 
   root.innerHTML = `
     <section class="metric-grid">
@@ -193,6 +219,17 @@ function renderRealtime(payload) {
       ${metricCard("Idle sessions", payload.session_overview.idle_sessions, "Derived from total-active")}
       ${metricCard("Gateways", totalGatewayCount, "Current known total")}
       ${metricCard("Gateway exits today", gatewayExitCount ?? "Unavailable", "Structured runtime value when available, otherwise a systemd journal exit-event count")}
+    </section>
+    <section class="panel panel-scene-shell">
+      <div class="panel-header">
+        <div>
+          <h2>Realtime Claw Scene</h2>
+          <p class="panel-subtitle">Blue-primary control room scene with lounge-resting idle agents, active workstation desks, hanging nameplates, and config-driven role styling. Parallel task count currently uses the live active_sessions field until OpenClaw publishes first-class per-agent task totals.</p>
+        </div>
+        <p class="meta-line">Scene-first live view</p>
+      </div>
+      ${renderRealtimeScene(sceneModel)}
+      <p class="scene-footnote">Hover cards currently expose the live agent name plus backend-hooked placeholders for ThinkingLevel and latest user input when that runtime detail is absent. Role styling is data-driven from <code>/assets/scene-role-styles.json</code>.</p>
     </section>
     <section class="panel-grid">
       <section class="panel">
@@ -246,11 +283,224 @@ function renderRealtime(payload) {
       </div>
       ${renderTable(payload.agent_sessions, [
         { key: "agent_name", label: "Agent" },
+        { key: "role_style_key", label: "Role style" },
         { key: "active_sessions", label: "Active", mono: true },
         { key: "total_sessions", label: "Total", mono: true },
       ])}
     </section>
   `;
+  bindSceneTooltips(root);
+}
+
+async function loadSceneRoleStyles() {
+  if (state.sceneRoleStyles) {
+    return state.sceneRoleStyles;
+  }
+  try {
+    const payload = await fetchJson("/assets/scene-role-styles.json");
+    state.sceneRoleStyles = normalizeSceneRoleStyles(payload);
+  } catch (error) {
+    console.warn("Failed to load scene role styles; using defaults.", error);
+    state.sceneRoleStyles = normalizeSceneRoleStyles(defaultSceneRoleStyles);
+  }
+  return state.sceneRoleStyles;
+}
+
+function normalizeSceneRoleStyles(payload) {
+  const source = payload && typeof payload === "object" ? payload : defaultSceneRoleStyles;
+  const roles = {
+    ...defaultSceneRoleStyles.roles,
+    ...(source.roles || {}),
+  };
+  return {
+    defaultRoleStyle: source.defaultRoleStyle || defaultSceneRoleStyles.defaultRoleStyle,
+    roles,
+    agents: source.agents || {},
+  };
+}
+
+function buildRealtimeSceneModel(payload, activeAgents, idleAgents, sceneRoleStyles) {
+  return {
+    activeAgents: activeAgents.slice(0, 6).map((agent, index) => createSceneAgent(agent, index, "active", sceneRoleStyles)),
+    idleAgents: idleAgents.slice(0, 4).map((agent, index) => createSceneAgent(agent, index, "idle", sceneRoleStyles)),
+    activeOverflow: Math.max(activeAgents.length - 6, 0),
+    idleOverflow: Math.max(idleAgents.length - 4, 0),
+    captureStatus: payload.capture_status,
+  };
+}
+
+function createSceneAgent(agent, index, stateKey, sceneRoleStyles) {
+  const roleStyle = resolveSceneRoleStyle(agent, sceneRoleStyles, index);
+  return {
+    id: slugify(agent.agent_name || `agent-${index}`),
+    name: agent.agent_name,
+    activeSessions: Number(agent.active_sessions || 0),
+    totalSessions: Number(agent.total_sessions || 0),
+    taskCount: Number(agent.active_sessions || 0),
+    roleStyleKey: agent.role_style_key || roleStyle.key,
+    roleStyle,
+    sceneState: stateKey,
+    thinkingLevel: agent.thinking_level || null,
+    latestUserInput: agent.latest_user_input || null,
+    deskLabel: stateKey === "active" ? `Desk ${index + 1}` : "Lounge",
+  };
+}
+
+function resolveSceneRoleStyle(agent, sceneRoleStyles, index) {
+  const styles = sceneRoleStyles || defaultSceneRoleStyles;
+  const roleKey = agent.role_style_key || styles.agents?.[agent.agent_name] || styles.defaultRoleStyle;
+  const role = styles.roles?.[roleKey] || styles.roles?.[styles.defaultRoleStyle] || defaultSceneRoleStyles.roles.general_operator;
+  const badgeBase = role.badge || String(agent.agent_name || "AG").slice(0, 2).toUpperCase();
+  return {
+    key: roleKey,
+    label: role.label || roleKey,
+    badge: badgeBase,
+    accent: role.accent || palette[index % palette.length],
+    accentSoft: role.accentSoft || "rgba(100, 192, 255, 0.18)",
+    outfit: role.outfit || "#2c5f96",
+    deskGlow: role.deskGlow || "rgba(100, 192, 255, 0.24)",
+    hair: role.hair || "#1f2b42",
+    skin: role.skin || "#f0c7a1",
+  };
+}
+
+function renderRealtimeScene(model) {
+  return `
+    <div class="scene-board">
+      <div class="scene-header-strip">
+        <span class="scene-header-chip">Capture ${escapeHtml(String(model.captureStatus))}</span>
+        <span class="scene-header-chip">${formatNumber(model.activeAgents.length)} active workers</span>
+        <span class="scene-header-chip">${formatNumber(model.idleAgents.length)} resting</span>
+      </div>
+      <div class="scene-room">
+        <div class="scene-room-glow scene-room-glow-left"></div>
+        <div class="scene-room-glow scene-room-glow-right"></div>
+        <div class="scene-lounge-zone">
+          <div class="scene-zone-title">Break lounge</div>
+          <div class="scene-couch"></div>
+          <div class="scene-coffee-table"></div>
+          ${model.idleAgents.map((agent, index) => renderSceneAgent(agent, index, "idle")).join("")}
+          ${model.idleOverflow ? `<div class="scene-overflow-pill">+${formatNumber(model.idleOverflow)} more idle</div>` : ""}
+        </div>
+        <div class="scene-work-zone">
+          <div class="scene-zone-title">Blue tech desk row</div>
+          <div class="scene-desk-row">
+            ${model.activeAgents.map((agent, index) => renderSceneDesk(agent, index)).join("")}
+          </div>
+          ${model.activeOverflow ? `<div class="scene-overflow-pill scene-overflow-pill-active">+${formatNumber(model.activeOverflow)} more active</div>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSceneDesk(agent, index) {
+  return `
+    <article class="scene-desk-card" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-outfit:${escapeAttribute(agent.roleStyle.outfit)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)}; --scene-hair:${escapeAttribute(agent.roleStyle.hair)}; --scene-skin:${escapeAttribute(agent.roleStyle.skin)};" data-scene-tooltip='${escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)))}'>
+      <div class="scene-nameplate">
+        <span class="scene-nameplate-name">${escapeHtml(agent.name)}</span>
+        <span class="scene-nameplate-count">${escapeHtml(formatTaskCount(agent.taskCount))}</span>
+      </div>
+      <div class="scene-monitor-stack">
+        <div class="scene-monitor"></div>
+        <div class="scene-monitor scene-monitor-small"></div>
+      </div>
+      ${renderSceneAgent(agent, index, "active")}
+      <div class="scene-role-chip">${escapeHtml(agent.roleStyle.label)}</div>
+    </article>
+  `;
+}
+
+function renderSceneAgent(agent, index, mode) {
+  return `
+    <article class="scene-agent scene-agent-${escapeAttribute(mode)}" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-outfit:${escapeAttribute(agent.roleStyle.outfit)}; --scene-hair:${escapeAttribute(agent.roleStyle.hair)}; --scene-skin:${escapeAttribute(agent.roleStyle.skin)};" data-scene-tooltip='${escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)))}'>
+      <div class="scene-agent-hanger">
+        <span class="scene-agent-badge">${escapeHtml(agent.roleStyle.badge)}</span>
+      </div>
+      <div class="scene-agent-body-wrap">
+        <div class="scene-agent-head"></div>
+        <div class="scene-agent-hair"></div>
+        <div class="scene-agent-body"></div>
+        <div class="scene-agent-arm scene-agent-arm-left"></div>
+        <div class="scene-agent-arm scene-agent-arm-right"></div>
+        <div class="scene-agent-leg scene-agent-leg-left"></div>
+        <div class="scene-agent-leg scene-agent-leg-right"></div>
+        ${mode === "idle" ? '<div class="scene-agent-mug"></div>' : '<div class="scene-agent-keyboard"></div>'}
+      </div>
+    </article>
+  `;
+}
+
+function buildSceneTooltipPayload(agent) {
+  return {
+    agentName: agent.name,
+    roleStyle: agent.roleStyle.label,
+    thinkingLevel: agent.thinkingLevel || "Deferred — backend field not yet exposed",
+    latestUserInput: agent.latestUserInput || "Deferred — backend must expose latest user input content for this session/agent.",
+  };
+}
+
+function bindSceneTooltips(scope) {
+  const tooltip = ensureSceneTooltip(scope);
+  scope.querySelectorAll("[data-scene-tooltip]").forEach((node) => {
+    const showTooltip = (event) => {
+      const payload = parseSceneTooltipPayload(node.dataset.sceneTooltip);
+      tooltip.hidden = false;
+      tooltip.innerHTML = `
+        <span class="scene-tooltip-title">${escapeHtml(payload.agentName || "Unknown agent")}</span>
+        <span class="scene-tooltip-row"><strong>Role</strong><span>${escapeHtml(payload.roleStyle || "Unknown")}</span></span>
+        <span class="scene-tooltip-row"><strong>ThinkingLevel</strong><span>${escapeHtml(payload.thinkingLevel || "Unavailable")}</span></span>
+        <span class="scene-tooltip-row scene-tooltip-row-multiline"><strong>Latest user input</strong><span>${escapeHtml(payload.latestUserInput || "Unavailable")}</span></span>
+      `;
+      positionSceneTooltip(tooltip, event);
+    };
+    node.addEventListener("mouseenter", showTooltip);
+    node.addEventListener("mousemove", (event) => positionSceneTooltip(tooltip, event));
+    node.addEventListener("mouseleave", () => {
+      tooltip.hidden = true;
+    });
+  });
+}
+
+function ensureSceneTooltip(scope) {
+  let tooltip = scope.querySelector(".scene-hover-tooltip");
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.className = "scene-hover-tooltip";
+    tooltip.hidden = true;
+    scope.appendChild(tooltip);
+  }
+  return tooltip;
+}
+
+function positionSceneTooltip(tooltip, event) {
+  const rect = document.getElementById("page-root").getBoundingClientRect();
+  const left = Math.min(Math.max(event.clientX - rect.left + 12, 12), Math.max(rect.width - tooltip.offsetWidth - 16, 12));
+  const top = Math.min(Math.max(event.clientY - rect.top + 12, 12), Math.max(rect.height - tooltip.offsetHeight - 16, 12));
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function parseSceneTooltipPayload(rawValue) {
+  try {
+    const parsed = JSON.parse(rawValue || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function formatTaskCount(value) {
+  const count = Number(value || 0);
+  return `${formatNumber(count)} task${count === 1 ? "" : "s"}`;
+}
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "agent";
 }
 
 function renderHistorical(payload) {

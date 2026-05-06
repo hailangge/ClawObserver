@@ -301,6 +301,10 @@ Avoid:
 - use consistent color mapping per agent/lane/state wherever possible
 - render visible Y-axis numeric labels
 - support shared mouse-hover tooltips on historical charts so hovering an X bucket reveals every series value at that bucket
+- keep the Realtime page's central visualization region as a dedicated 3D-like office/work scene rather than downgrading it to ordinary summary panels
+- use blue/deep-tech lighting, layered desk/lounge zones, and hanging nameplates so agent work state remains visually legible in the main scene
+- drive role/agent appearance through external config plus renderer components so presentation can be restyled without rewriting placement logic
+- when optional session-detail hover data is unavailable, show explicit deferred placeholders in the scene tooltip instead of silently suppressing that surface
 
 ## 8. Operator documentation expectations
 

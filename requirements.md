@@ -190,8 +190,13 @@ ClawObserver is acceptable when all of the following are true:
 6. Gateway exit counts are available in both realtime and archive-backed views, with any journal/log heuristic documented honestly.
 7. Historical charts show visible Y-axis numeric labels and shared mouse-hover tooltips that reveal every series value at the hovered X bucket.
 8. The UI follows the approved deep-tech minimal style direction, including branded ClawObserver header artwork.
-9. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
-10. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
+9. The Realtime page keeps a central visualization area as the main agent-work scene instead of flattening that view into ordinary cards.
+10. The central Realtime visualization reads as a coherent 3D-like office/work scene populated by cute little people, not abstract icons or a collage of mismatched shapes.
+11. The scene shows each agent's current work state visually, with hanging tags/nameplates that display agent name plus current task count.
+12. Scene role/agent presentation is configurable through components/config data rather than hardcoded one-off styling.
+13. If hover session details such as ThinkingLevel or latest user input are not yet available from the runtime source, the UI explicitly labels them as deferred placeholders rather than silently omitting them.
+14. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
+15. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
 
 ## 10. Open questions
 

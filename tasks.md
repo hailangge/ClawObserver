@@ -36,9 +36,12 @@
 - [x] Hide time-range selector on Realtime page
 - [x] Fix Gateway exits today collection from systemd journal
 - [x] Fix token statistics undercounting by summing cumulative snapshot diffs
+- [x] Restore and redesign the central Realtime visualization region as the main deep-tech agent-work scene
+- [x] Add config-driven scene role styling plus optional session-detail tooltip placeholders for the Realtime scene
+- [x] Validate the rebuilt Realtime scene in a real browser render and commit the correction
 
 ## Notes
-- Current status: All three critical fixes validated and working as of 2026-03-28.
+- Current status: Realtime scene correction completed on 2026-05-06 with the central visualization area restored as the primary deep-tech office/work scene.
 - Fix validation results:
   1. **Time-range selector**: Hidden on Realtime page via `syncRangeSelectorVisibility()` function in app.js
   2. **Gateway exits today**: Correctly counted via systemd journal heuristic (showing 4 exits today)
@@ -73,3 +76,7 @@
 - Added compact token rendering on 2026-03-28 so token cards, token tables, token bar lists, token chart axes, and token tooltips use `K` formatting for large values.
 - Added visible page-body loading states on 2026-03-28 for Realtime, Historical, and Token Stats page/range transitions so the UI shows `Loading...` until the next payload finishes rendering.
 - Verified the token-statistics repair pass locally on 2026-03-28 with pinned archive-date unit tests plus `node --check` on the frontend bundle before the full validation pass.
+- Owner correction applied on 2026-05-06: the central Realtime visualization area must remain and be restyled, not removed. The rebuilt scene now preserves that middle canvas as the main 3D-like deep-tech office visualization.
+- The restored Realtime scene uses `clawobserver/static/scene-role-styles.json` for configurable role/agent presentation and shows hanging nameplates with agent name plus current task-count proxy (`active_sessions`).
+- Optional hover session details remain explicit: the scene tooltip shows role plus deferred placeholder text for `ThinkingLevel` and latest user input when the runtime source does not expose those fields yet.
+- Verified the corrected Realtime scene on 2026-05-06 with `node --check clawobserver/static/app.js`, `python3 -m unittest tests.test_runtime tests.test_archive -v`, live HTTP fetches against the local server, and a real headless Chrome screenshot render of `http://127.0.0.1:8420` saved as `clawobserver-realtime-scene.png`.

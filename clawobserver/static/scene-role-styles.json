@@ -1,0 +1,56 @@
+{
+  "defaultRoleStyle": "general_operator",
+  "roles": {
+    "general_operator": {
+      "label": "General operator",
+      "badge": "OP",
+      "accent": "#64c0ff",
+      "accentSoft": "rgba(100, 192, 255, 0.18)",
+      "outfit": "#2c5f96",
+      "deskGlow": "rgba(100, 192, 255, 0.24)",
+      "hair": "#1f2b42",
+      "skin": "#f0c7a1"
+    },
+    "planner": {
+      "label": "Planner",
+      "badge": "PL",
+      "accent": "#a98bff",
+      "accentSoft": "rgba(169, 139, 255, 0.2)",
+      "outfit": "#5f4aa5",
+      "deskGlow": "rgba(169, 139, 255, 0.24)",
+      "hair": "#2b1d3f",
+      "skin": "#efc39f"
+    },
+    "researcher": {
+      "label": "Researcher",
+      "badge": "RS",
+      "accent": "#67d3b0",
+      "accentSoft": "rgba(103, 211, 176, 0.2)",
+      "outfit": "#2f7667",
+      "deskGlow": "rgba(103, 211, 176, 0.24)",
+      "hair": "#223547",
+      "skin": "#d7a774"
+    },
+    "operator": {
+      "label": "Operator",
+      "badge": "OP",
+      "accent": "#64c0ff",
+      "accentSoft": "rgba(100, 192, 255, 0.18)",
+      "outfit": "#2c5f96",
+      "deskGlow": "rgba(100, 192, 255, 0.24)",
+      "hair": "#1f2b42",
+      "skin": "#f0c7a1"
+    },
+    "reviewer": {
+      "label": "Reviewer",
+      "badge": "RV",
+      "accent": "#f0be63",
+      "accentSoft": "rgba(240, 190, 99, 0.22)",
+      "outfit": "#8a5f22",
+      "deskGlow": "rgba(240, 190, 99, 0.26)",
+      "hair": "#37261a",
+      "skin": "#8e5f3a"
+    }
+  },
+  "agents": {}
+}

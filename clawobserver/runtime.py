@@ -190,6 +190,21 @@ class LiveRuntimeAdapter:
                     agent_name=str(item.get("agent_name", "unknown")),
                     active_sessions=_to_int(item.get("active_sessions")),
                     total_sessions=_to_int(item.get("total_sessions")),
+                    role_style_key=(
+                        str(item.get("role_style_key") or item.get("roleStyleKey")).strip()
+                        if item.get("role_style_key") or item.get("roleStyleKey")
+                        else None
+                    ),
+                    thinking_level=(
+                        str(item.get("thinking_level") or item.get("thinkingLevel")).strip()
+                        if item.get("thinking_level") or item.get("thinkingLevel")
+                        else None
+                    ),
+                    latest_user_input=(
+                        str(item.get("latest_user_input") or item.get("latestUserInput")).strip()
+                        if item.get("latest_user_input") or item.get("latestUserInput")
+                        else None
+                    ),
                 )
             )
         by_agent.sort(key=lambda item: (-item.active_sessions, item.agent_name))

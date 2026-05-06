@@ -35,7 +35,7 @@ The current implementation covers the approved monitoring scope:
 - token statistics based on daily end-of-day archive selection, including cache-hit ratio when the runtime exposes cache counters cleanly
 - local SQLite storage with no external database dependency
 - host-native user-level `systemd` deployment
-- branded header artwork and operator-oriented historical charts with visible Y-axis labels plus hover tooltips
+- branded header artwork, a central deep-tech realtime agent scene, and operator-oriented historical charts with visible Y-axis labels plus hover tooltips
 
 The internal scope documents remain in this repo:
 
@@ -178,6 +178,12 @@ ClawObserver resolves live runtime data in this order:
 1. `CLAWOBSERVER_RUNTIME_COMMAND`
 2. `CLAWOBSERVER_RUNTIME_JSON`
 3. built-in demo payload
+
+## Realtime scene configuration
+
+The Realtime page keeps a central visualization area as the primary agent-work scene. It stays blue/deep-tech and renders a lightweight 3D-like office: active agents at desks, idle agents in the lounge, hanging nameplates with agent name plus current task count, and config-driven role styling.
+
+Scene role styling is loaded from `clawobserver/static/scene-role-styles.json` so role/agent presentation can be changed without hardcoding it into the renderer. Hover cards currently show role plus optional session fields (`ThinkingLevel`, latest user input). When the runtime source does not expose those fields yet, the UI renders an explicit deferred placeholder instead of silently omitting them.
 
 The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI adapter. It:
 
