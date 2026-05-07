@@ -523,6 +523,11 @@ code {
   z-index: 3;
 }
 
+.scene-reference-slot-active,
+.scene-reference-slot-idle {
+  isolation: isolate;
+}
+
 .scene-lounge-plate {
   position: absolute;
   border-radius: 28px;
@@ -548,6 +553,7 @@ code {
   cursor: pointer;
   opacity: 0.12;
   transition: opacity 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  z-index: 4;
 }
 
 .scene-reference-hotspot:hover,
@@ -590,6 +596,35 @@ code {
   box-shadow: none;
   opacity: 0.01;
   z-index: 6;
+}
+
+.scene-workstation-resource,
+.scene-reference-vacancy {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.scene-workstation-resource {
+  border-radius: 20px;
+}
+
+.scene-workstation-resource-active {
+  background:
+    radial-gradient(circle at 50% 26%, rgba(212, 245, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 48% 60%, rgba(46, 92, 156, 0.2), transparent 34%),
+    linear-gradient(180deg, rgba(100, 192, 255, 0.2), rgba(100, 192, 255, 0.04));
+  box-shadow:
+    inset 0 0 0 1px rgba(122, 212, 255, 0.14),
+    0 0 22px rgba(87, 193, 255, 0.1);
+}
+
+.scene-reference-vacancy {
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(7, 17, 31, 0.16), rgba(7, 17, 31, 0.04)),
+    repeating-linear-gradient(135deg, rgba(138, 196, 255, 0.03) 0 10px, rgba(7, 17, 31, 0) 10px 20px);
+  box-shadow: inset 0 0 0 1px rgba(122, 212, 255, 0.06);
 }
 
 .scene-reference-tag {
@@ -650,6 +685,15 @@ code {
 .scene-reference-tag-row-1::before,
 .scene-reference-tag-row-2::before {
   height: 1.1rem;
+}
+
+.scene-reference-slot[data-scene-state="idle"] .scene-reference-tag {
+  background: linear-gradient(180deg, rgba(25, 42, 72, 0.94), rgba(17, 28, 49, 0.98));
+  border-color: rgba(146, 214, 255, 0.48);
+}
+
+.scene-reference-slot[data-scene-state="idle"] .scene-reference-tag-text {
+  color: #dcecff;
 }
 
 .scene-idle-avatar {

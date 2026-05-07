@@ -7,6 +7,7 @@ from pathlib import Path
 
 from clawobserver.config import AppConfig
 from clawobserver.runtime import LiveRuntimeAdapter, build_demo_payload
+from clawobserver.app import ClawObserverApp
 
 
 class RuntimeAdapterGatewayTests(unittest.TestCase):
@@ -111,6 +112,10 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
                             "latest_user_input": "Investigate rollout latency",
                             "latest_user_input_timestamp": "2026-03-27T11:58:00+00:00",
                             "session_model": "gpt-5.4",
+                            "task_details": [
+                                "Investigate rollout latency",
+                                "Validate live hover metadata",
+                            ],
                         }
                     ],
                     "by_type": [
@@ -129,6 +134,25 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
         self.assertEqual(snapshot.agent_sessions[0].latest_user_input, "Investigate rollout latency")
         self.assertEqual(snapshot.agent_sessions[0].latest_user_input_timestamp, "2026-03-27T11:58:00+00:00")
         self.assertEqual(snapshot.agent_sessions[0].session_model, "gpt-5.4")
+        self.assertEqual(
+            snapshot.agent_sessions[0].task_details,
+            [
+                "Investigate rollout latency",
+                "Validate live hover metadata",
+            ],
+        )
+
+    def test_live_overview_payload_includes_agent_task_details(self) -> None:
+        app = ClawObserverApp(self.config)
+        payload = app.live_overview_payload()
+
+        self.assertIn("agent_sessions", payload)
+        self.assertGreater(len(payload["agent_sessions"]), 0)
+        first_agent = payload["agent_sessions"][0]
+        self.assertIn("task_details", first_agent)
+        self.assertTrue(
+            first_agent["task_details"] is None or isinstance(first_agent["task_details"], list)
+        )
 
 
 if __name__ == "__main__":

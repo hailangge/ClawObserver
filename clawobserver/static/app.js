@@ -5,6 +5,7 @@ const state = {
   loadingKey: null,
   requestSequence: 0,
   sceneRoleStyles: null,
+  sceneDeskAssignments: {},
 };
 
 const palette = ["#64c0ff", "#5eb88d", "#d8aa5a", "#d16d73", "#7f9cf5", "#6fd0c4"];
@@ -31,16 +32,16 @@ const referenceSceneLayout = {
     { tagTop: 38.8, characterTop: 43.2 },
   ],
   activeSlots: [
-    { row: 0, character: { top: 14.2, left: 4.5, width: 15.2, height: 27.8 }, tag: { top: 10.3, left: 4.3, width: 14.8, height: 5.2 } },
-    { row: 0, character: { top: 14.2, left: 22.4, width: 15.2, height: 28.0 }, tag: { top: 10.3, left: 22.2, width: 15.3, height: 5.2 } },
-    { row: 0, character: { top: 14.2, left: 40.8, width: 15.0, height: 28.0 }, tag: { top: 10.3, left: 40.2, width: 15.9, height: 5.2 } },
-    { row: 0, character: { top: 14.2, left: 59.0, width: 15.2, height: 28.0 }, tag: { top: 10.3, left: 58.4, width: 15.7, height: 5.2 } },
-    { row: 0, character: { top: 14.2, left: 77.0, width: 15.4, height: 28.0 }, tag: { top: 10.3, left: 76.8, width: 16.0, height: 5.2 } },
-    { row: 1, character: { top: 43.2, left: 4.8, width: 15.2, height: 28.2 }, tag: { top: 38.8, left: 3.4, width: 17.0, height: 5.4 } },
-    { row: 1, character: { top: 43.2, left: 22.4, width: 15.2, height: 28.0 }, tag: { top: 38.8, left: 22.0, width: 15.7, height: 5.4 } },
-    { row: 1, character: { top: 43.2, left: 40.9, width: 15.0, height: 27.8 }, tag: { top: 38.8, left: 40.5, width: 15.6, height: 5.4 } },
-    { row: 1, character: { top: 43.2, left: 59.2, width: 15.2, height: 28.2 }, tag: { top: 38.8, left: 58.8, width: 15.1, height: 5.4 } },
-    { row: 1, character: { top: 43.2, left: 77.0, width: 15.2, height: 28.0 }, tag: { top: 38.8, left: 76.8, width: 15.8, height: 5.4 } },
+    { row: 0, character: { left: 4.5, width: 15.2, height: 27.8 }, tag: { left: 4.5, width: 15.2, height: 5.2 } },
+    { row: 0, character: { left: 22.4, width: 15.2, height: 28.0 }, tag: { left: 22.4, width: 15.2, height: 5.2 } },
+    { row: 0, character: { left: 40.8, width: 15.0, height: 28.0 }, tag: { left: 40.8, width: 15.0, height: 5.2 } },
+    { row: 0, character: { left: 59.0, width: 15.2, height: 28.0 }, tag: { left: 59.0, width: 15.2, height: 5.2 } },
+    { row: 0, character: { left: 77.0, width: 15.4, height: 28.0 }, tag: { left: 77.0, width: 15.4, height: 5.2 } },
+    { row: 1, character: { left: 4.8, width: 15.2, height: 28.2 }, tag: { left: 4.8, width: 15.2, height: 5.4 } },
+    { row: 1, character: { left: 22.4, width: 15.2, height: 28.0 }, tag: { left: 22.4, width: 15.2, height: 5.4 } },
+    { row: 1, character: { left: 40.9, width: 15.0, height: 27.8 }, tag: { left: 40.9, width: 15.0, height: 5.4 } },
+    { row: 1, character: { left: 59.2, width: 15.2, height: 28.2 }, tag: { left: 59.2, width: 15.2, height: 5.4 } },
+    { row: 1, character: { left: 77.0, width: 15.2, height: 28.0 }, tag: { left: 77.0, width: 15.2, height: 5.4 } },
   ],
   loungeArea: { top: 72.6, left: 18.0, width: 58.0, height: 18.2 },
   idleSlots: [
@@ -252,12 +253,12 @@ function renderRealtime(payload, sceneRoleStyles) {
       <div class="panel-header">
         <div>
           <h2>Realtime Claw Scene</h2>
-          <p class="panel-subtitle">Half-scale office stage with aligned workstation tags, empty desks retained for idle agents, and a dedicated lounge strip for resting agents. Parallel task count currently uses the live active_sessions field until OpenClaw publishes first-class per-agent task totals.</p>
+          <p class="panel-subtitle">Reference-matched office stage with shared-row hanging-tag baselines, visually empty idle desks, and a dedicated lounge strip for resting agents. Parallel task count currently uses the live active_sessions field until OpenClaw publishes first-class per-agent task totals.</p>
         </div>
         <p class="meta-line">Scene-first live view</p>
       </div>
       ${renderRealtimeScene(sceneModel, payload)}
-      <p class="scene-footnote">Hover cards expose agent name, latest user-input timestamp/content, session model, and ThinkingLevel when the runtime publishes them. Role styling remains data-driven from <code>/assets/scene-role-styles.json</code>.</p>
+      <p class="scene-footnote">Hover cards expose agent name, latest user-input timestamp/content, session model, ThinkingLevel, and any trustworthy live task-detail lines the runtime publishes. Role styling remains data-driven from <code>/assets/scene-role-styles.json</code>.</p>
     </section>
     <section class="panel-grid">
       <section class="panel">
@@ -348,25 +349,59 @@ function normalizeSceneRoleStyles(payload) {
 }
 
 function buildRealtimeSceneModel(payload, activeAgents, idleAgents, sceneRoleStyles) {
-  const rankedRoster = [...payload.agent_sessions].sort((left, right) =>
-    right.active_sessions - left.active_sessions ||
-    right.total_sessions - left.total_sessions ||
-    String(left.agent_name).localeCompare(String(right.agent_name))
-  );
+  const deskAssignments = assignSceneDeskSlots(payload.agent_sessions);
   const officeAssignments = referenceSceneLayout.activeSlots.map((slot, index) => {
-    const source = rankedRoster[index];
-    return source ? createSceneAgent(source, index, source.active_sessions > 0 ? "active" : "idle", sceneRoleStyles) : createEmptyDeskAgent(index);
+    const source = deskAssignments[index];
+    return source
+      ? createSceneAgent(source, index, source.active_sessions > 0 ? "active" : "idle", sceneRoleStyles)
+      : createUnassignedDeskSlot(index);
   });
   return {
     officeAgents: officeAssignments,
     idleLoungeAgents: idleAgents.slice(0, referenceSceneLayout.idleSlots.length).map((agent, index) => createSceneAgent(agent, index, "idle", sceneRoleStyles)),
     activeWorkerCount: activeAgents.length,
     restingWorkerCount: idleAgents.length,
-    rosterOverflow: Math.max(rankedRoster.length - referenceSceneLayout.activeSlots.length, 0),
+    rosterOverflow: Math.max(payload.agent_sessions.length - referenceSceneLayout.activeSlots.length, 0),
     captureStatus: payload.capture_status,
     queueSnapshot: payload.queue_lanes,
     gatewaySnapshot: payload.gateways,
   };
+}
+
+function assignSceneDeskSlots(agentSessions) {
+  const slotCount = referenceSceneLayout.activeSlots.length;
+  const previousAssignments = { ...(state.sceneDeskAssignments || {}) };
+  const usedSlots = new Set();
+  const bySlot = new Array(slotCount).fill(null);
+  const nextAssignments = {};
+  const orderedAgents = [...agentSessions].sort((left, right) =>
+    String(left.agent_name).localeCompare(String(right.agent_name))
+  );
+
+  orderedAgents.forEach((agent) => {
+    const previousSlot = previousAssignments[agent.agent_name];
+    if (Number.isInteger(previousSlot) && previousSlot >= 0 && previousSlot < slotCount && !usedSlots.has(previousSlot)) {
+      bySlot[previousSlot] = agent;
+      usedSlots.add(previousSlot);
+      nextAssignments[agent.agent_name] = previousSlot;
+    }
+  });
+
+  orderedAgents.forEach((agent) => {
+    if (Object.prototype.hasOwnProperty.call(nextAssignments, agent.agent_name)) {
+      return;
+    }
+    const openSlot = bySlot.findIndex((item) => item === null);
+    if (openSlot === -1) {
+      return;
+    }
+    bySlot[openSlot] = agent;
+    usedSlots.add(openSlot);
+    nextAssignments[agent.agent_name] = openSlot;
+  });
+
+  state.sceneDeskAssignments = nextAssignments;
+  return bySlot;
 }
 
 function createSceneAgent(agent, index, stateKey, sceneRoleStyles) {
@@ -384,27 +419,31 @@ function createSceneAgent(agent, index, stateKey, sceneRoleStyles) {
     latestUserInput: agent.latest_user_input || null,
     latestUserInputTimestamp: agent.latest_user_input_timestamp || null,
     sessionModel: agent.session_model || null,
-    deskLabel: stateKey === "active" ? `Desk ${index + 1}` : "Lounge",
+    taskDetails: Array.isArray(agent.task_details) ? agent.task_details.filter(Boolean) : [],
+    deskLabel: `Desk ${index + 1}`,
     isPlaceholder: false,
+    isUnassigned: false,
   };
 }
 
-function createEmptyDeskAgent(index) {
+function createUnassignedDeskSlot(index) {
   return {
     id: `empty-desk-${index + 1}`,
-    name: `Desk ${index + 1}`,
+    name: null,
     activeSessions: 0,
     totalSessions: 0,
     taskCount: 0,
     roleStyleKey: "general_operator",
     roleStyle: resolveSceneRoleStyle({}, defaultSceneRoleStyles, index),
-    sceneState: "empty",
+    sceneState: "unassigned",
     thinkingLevel: null,
     latestUserInput: null,
     latestUserInputTimestamp: null,
     sessionModel: null,
+    taskDetails: [],
     deskLabel: `Desk ${index + 1}`,
     isPlaceholder: true,
+    isUnassigned: true,
   };
 }
 
@@ -480,19 +519,62 @@ function renderRealtimeScene(model) {
 }
 
 function renderReferenceDeskSlot(agent, slot, index) {
+  const normalizedSlot = normalizeReferenceDeskSlot(slot);
+  if (agent.isUnassigned) {
+    return `
+      <article
+        class="scene-reference-slot scene-reference-slot-active"
+        data-scene-slot-index="${index + 1}"
+        data-scene-row="${slot.row + 1}"
+        data-scene-state="unassigned"
+      >
+        <div
+          class="scene-reference-vacancy"
+          style="${styleFromRect(normalizedSlot.character)}"
+          aria-hidden="true"
+        ></div>
+      </article>
+    `;
+  }
   const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
   const tagClassNames = ["scene-reference-tag", `scene-reference-tag-row-${slot.row + 1}`];
   const deskStateClass = agent.sceneState === "active" ? "scene-reference-hotspot-active" : "scene-reference-hotspot-empty";
+  const workstationResource = agent.sceneState === "active"
+    ? `
+      <div
+        class="scene-workstation-resource scene-workstation-resource-active"
+        style="${styleFromRect(normalizedSlot.character)}"
+        aria-hidden="true"
+      ></div>
+    `
+    : "";
   return `
-    <article class="scene-reference-slot scene-reference-slot-active" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)};">
+    <article
+      class="scene-reference-slot scene-reference-slot-active"
+      style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)};"
+      data-scene-slot-index="${index + 1}"
+      data-scene-row="${slot.row + 1}"
+      data-scene-state="${escapeAttribute(agent.sceneState)}"
+      data-scene-agent-name="${escapeAttribute(agent.name)}"
+      data-scene-task-count="${escapeAttribute(String(agent.taskCount))}"
+    >
       <button
         type="button"
         class="scene-reference-hotspot ${deskStateClass}"
-        style="${styleFromRect(slot.character)}"
+        style="${styleFromRect(normalizedSlot.character)}"
         data-scene-tooltip='${tooltipPayload}'
+        data-scene-zone="workstation"
         aria-label="${escapeAttribute(buildSceneAriaLabel(agent, `workstation ${index + 1}`))}"
       ></button>
-      <div class="${tagClassNames.join(" ")}" style="${styleFromRect(slot.tag)}" data-scene-tooltip='${tooltipPayload}'>
+      ${workstationResource}
+      <div
+        class="${tagClassNames.join(" ")}"
+        style="${styleFromRect(normalizedSlot.tag)}"
+        data-scene-tooltip='${tooltipPayload}'
+        data-scene-zone="tag"
+        data-scene-row="${slot.row + 1}"
+        data-scene-baseline-top="${normalizedSlot.tag.top}"
+      >
         <span class="scene-reference-tag-text">${escapeHtml(formatSceneTagText(agent))}</span>
       </div>
     </article>
@@ -502,7 +584,14 @@ function renderReferenceDeskSlot(agent, slot, index) {
 function renderReferenceIdleSlot(agent, slot, index) {
   const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
   return `
-    <article class="scene-reference-slot scene-reference-slot-idle" style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)};">
+    <article
+      class="scene-reference-slot scene-reference-slot-idle"
+      style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)};"
+      data-scene-state="idle"
+      data-scene-zone="lounge"
+      data-scene-agent-name="${escapeAttribute(agent.name)}"
+      data-scene-task-count="${escapeAttribute(String(agent.taskCount))}"
+    >
       <button
         type="button"
         class="scene-reference-hotspot scene-reference-hotspot-idle"
@@ -519,22 +608,39 @@ function styleFromRect(rect) {
   return `top:${rect.top}%;left:${rect.left}%;width:${rect.width}%;height:${rect.height}%;`;
 }
 
+function normalizeReferenceDeskSlot(slot) {
+  const rowLayout = referenceSceneLayout.deskRows[slot.row] || referenceSceneLayout.deskRows[0];
+  return {
+    row: slot.row,
+    character: {
+      ...slot.character,
+      top: rowLayout.characterTop,
+    },
+    tag: {
+      ...slot.tag,
+      top: rowLayout.tagTop,
+    },
+  };
+}
+
 function formatSceneTagText(agent) {
   return `${agent.name} (${formatNumber(agent.taskCount)})`;
 }
 
 function buildSceneAriaLabel(agent, areaLabel) {
-  return `${agent.name}, ${formatTaskCount(agent.taskCount)}, ${areaLabel}`;
+  return `${agent.name}, ${formatSceneStateLabel(agent.sceneState)}, ${formatTaskCount(agent.taskCount)}, ${areaLabel}`;
 }
 
 function buildSceneTooltipPayload(agent) {
   return {
     agentName: agent.name,
+    sceneState: formatSceneStateLabel(agent.sceneState),
     roleStyle: agent.roleStyle.label,
     thinkingLevel: agent.thinkingLevel || "Deferred — backend field not yet exposed",
     latestUserInput: agent.latestUserInput || "Deferred — backend must expose latest user input content for this session/agent.",
     latestUserInputTimestamp: agent.latestUserInputTimestamp || "Deferred — backend has not exposed the latest user-input timestamp for this agent session.",
     sessionModel: agent.sessionModel || "Deferred — backend has not exposed the active session model for this agent.",
+    taskDetails: formatSceneTaskDetails(agent),
   };
 }
 
@@ -546,11 +652,13 @@ function bindSceneTooltips(scope) {
       tooltip.hidden = false;
       tooltip.innerHTML = `
         <span class="scene-tooltip-title">${escapeHtml(payload.agentName || "Unknown agent")}</span>
+        <span class="scene-tooltip-row"><strong>Status</strong><span>${escapeHtml(payload.sceneState || "Unknown")}</span></span>
         <span class="scene-tooltip-row"><strong>Role</strong><span>${escapeHtml(payload.roleStyle || "Unknown")}</span></span>
         <span class="scene-tooltip-row"><strong>Input at</strong><span>${escapeHtml(formatSceneTooltipTime(payload.latestUserInputTimestamp))}</span></span>
         <span class="scene-tooltip-row"><strong>Model</strong><span>${escapeHtml(payload.sessionModel || "Unavailable")}</span></span>
         <span class="scene-tooltip-row"><strong>ThinkingLevel</strong><span>${escapeHtml(payload.thinkingLevel || "Unavailable")}</span></span>
         <span class="scene-tooltip-row scene-tooltip-row-multiline"><strong>Latest user input</strong><span>${escapeHtml(payload.latestUserInput || "Unavailable")}</span></span>
+        <span class="scene-tooltip-row scene-tooltip-row-multiline"><strong>Tasks</strong><span>${escapeHtml(payload.taskDetails || "Unavailable")}</span></span>
       `;
       positionSceneTooltip(tooltip, event);
     };
@@ -600,6 +708,29 @@ function formatSceneTooltipTime(value) {
     return value || "Unavailable";
   }
   return formatDateTime(value);
+}
+
+function formatSceneStateLabel(stateKey) {
+  if (stateKey === "active") {
+    return "Working";
+  }
+  if (stateKey === "idle") {
+    return "Idle / resting";
+  }
+  return "Unassigned desk";
+}
+
+function formatSceneTaskDetails(agent) {
+  if (Array.isArray(agent.taskDetails) && agent.taskDetails.length) {
+    return agent.taskDetails.join(" | ");
+  }
+  if (agent.sceneState === "active") {
+    return "Live runtime currently exposes task count only for this working agent.";
+  }
+  if (agent.sceneState === "idle") {
+    return "Idle agent is resting in the lounge; workstation remains empty with 0 active tasks.";
+  }
+  return "No tracked agent is currently assigned to this workstation anchor.";
 }
 
 function slugify(value) {

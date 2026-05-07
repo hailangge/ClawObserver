@@ -2,10 +2,12 @@
 
 ## In progress
 - [x] Confirm scope from `requirements.md` and `design.md`
-- [x] Shrink and relayout the Realtime office scene so it renders at roughly half-scale with right-side supporting controls/content (`clawobserver/static/app.js`, `clawobserver/static/styles.css`)
-- [x] Enforce straight-row hanging nameplate alignment and idle-lounge separation with empty-desk zero-task tags (`clawobserver/static/app.js`, `clawobserver/static/styles.css`, `clawobserver/static/scene-role-styles.json`)
-- [x] Expand workstation hover bubbles to include timestamp, latest user input, model, and thinking level (`clawobserver/static/app.js`, backend/runtime payload files, tests`)
-- [x] Run browser/build validation for the owner adjustment pass and commit the result
+- [x] Align corrected owner requirements across the scene renderer and runtime payload contract without forcing a global scene shrink (`requirements.md`, `design.md`, `tasks.md`)
+- [x] Strengthen working/idle dual-resource scene treatment and preserve empty-desk zero-task tags for idle agents (`clawobserver/static/app.js`, `clawobserver/static/styles.css`, `clawobserver/static/scene-role-styles.json`)
+- [x] Expand workstation hover bubbles/runtime payloads toward per-agent task-detail coverage while retaining the required timestamp/input/model/thinking metadata (`clawobserver/static/app.js`, `scripts/openclaw_runtime_adapter.py`, `clawobserver/runtime.py`, `tests`)
+- [x] Fix systematic Realtime hanging-tag row misalignment shown in owner screenshot; enforce shared baselines per intended row and preserve lounge alignment (`clawobserver/static/app.js`, `clawobserver/static/styles.css`)
+- [ ] Re-validate the repaired scene against the owner screenshot issue and obtain independent Kimi PASS (`tasks.md`, validation artifacts)
+- [x] Run minimal browser/build validation for the corrected owner requirement pass and commit the result
 - [x] Scaffold the application structure for ClawObserver
 - [x] Implement live runtime data collection for realtime overview
 - [x] Implement archive schema and 30-minute snapshot pipeline
@@ -45,8 +47,20 @@
 - [x] Validate the rebuilt Realtime scene in a real browser render and commit the correction
 
 ## Notes
-- Current status: owner adjustment pass completed on 2026-05-06 with a half-scale scene stage, right-side sidecar layout, normalized row-aligned workstation tags, distinct lounge idle avatars, empty-desk zero-task tags, and richer hover bubble fields (timestamp/input/model/thinking level).
+- Current status: owner supplied a real screenshot proving the hanging desk tags are still systematically staggered by row. Next pass must correct the top/middle row baseline math plus lounge icon alignment without shrinking the scene or regressing idle-desk zero-task behavior, then obtain an independent Kimi PASS.
+- Fresh SPEC-mode repair on 2026-05-07: desk-slot assignment is now stable per agent across refreshes, row tag `top` values are normalized from shared `deskRows` baselines instead of per-slot drift, idle agents render only in the lounge while their own desk tags remain at `0`, and workstation/tag hover bubbles now surface task-detail text when the runtime provides it.
+- Validation evidence for the 2026-05-07 bugfix pass:
+  - `node --check clawobserver/static/app.js`
+  - `python3 -m compileall clawobserver scripts tests`
+  - `python3 -m unittest tests.test_runtime tests.test_archive tests.test_openclaw_runtime_adapter -v`
+  - `curl -fsS http://127.0.0.1:8420/api/health`
+  - `google-chrome --headless=new --disable-gpu --window-size=1440,1400 --screenshot=/tmp/clawobserver-scene-bugfix-2026-05-07.png http://127.0.0.1:8420`
+- Independent Kimi PASS remains blocked in this Codex-only environment; no Kimi runner/tooling is available in-repo or in-session, so that validation item stays open instead of being marked complete.
+- Corrected owner-direction note on 2026-05-06: do not globally shrink the Realtime scene. Keep the main office stage at its current scale and use the right-side sidecar only when horizontal space allows.
+- Runtime/scene contract update on 2026-05-06: hover bubbles now include latest input time, latest input content, session model, thinking level, and an honest per-agent task-details line. When the runtime does not expose a trustworthy live task list, the tooltip states that limitation explicitly instead of implying full task coverage.
+- Subtitle convergence follow-up on 2026-05-06: removed the stale `Half-scale office stage` wording from the Realtime scene subtitle so the UI text now matches the corrected no-global-shrink owner requirement.
 - Validation evidence for the adjustment pass:
+  - Re-verified on 2026-05-06 in a fresh follow-up session with `curl -fsS http://127.0.0.1:8420/api/health`, `python3 - <<'PY' ... urllib.request.urlopen('http://127.0.0.1:8420/api/live/overview') ... PY`, and `google-chrome --headless=new --disable-gpu --window-size=1440,1400 --screenshot=/tmp/clawobserver-subagent-check.png http://127.0.0.1:8420`
   - `node --check clawobserver/static/app.js`
   - `python3 -m compileall clawobserver scripts tests`
   - `python3 -m unittest tests.test_runtime tests.test_archive tests.test_openclaw_runtime_adapter -v`
