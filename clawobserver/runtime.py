@@ -101,6 +101,10 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
                     "latest_user_input": "Review the rollout checklist and assign the next blocker.",
                     "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 8, 0)).isoformat(),
                     "session_model": "gpt-5.4",
+                    "task_details": [
+                        "Review rollout checklist",
+                        "Assign next blocker",
+                    ],
                 },
                 {
                     "agent_name": "researcher",
@@ -111,6 +115,9 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
                     "latest_user_input": "Summarize the latest operator notes for the queue-depth anomaly.",
                     "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 14, 0)).isoformat(),
                     "session_model": "gpt-5.4",
+                    "task_details": [
+                        "Summarize queue-depth notes",
+                    ],
                 },
                 {
                     "agent_name": "operator",
@@ -121,6 +128,10 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
                     "latest_user_input": "Keep the gateway service stable and surface any new restarts immediately.",
                     "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 5, 0)).isoformat(),
                     "session_model": "gpt-5.4-coder",
+                    "task_details": [
+                        "Watch gateway restarts",
+                        "Report service instability",
+                    ],
                 },
                 {
                     "agent_name": "reviewer",
@@ -131,6 +142,9 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
                     "latest_user_input": "Check the final patch for regressions and operator-facing UX drift.",
                     "latest_user_input_timestamp": captured_at.replace(minute=max(captured_at.minute - 21, 0)).isoformat(),
                     "session_model": "gpt-5.4",
+                    "task_details": [
+                        "Review final patch",
+                    ],
                 },
             ],
             "by_state": [
@@ -235,6 +249,11 @@ class LiveRuntimeAdapter:
                         if item.get("session_model") or item.get("sessionModel") or item.get("model")
                         else None
                     ),
+                    task_details=[
+                        str(detail).strip()
+                        for detail in (item.get("task_details") or item.get("taskDetails") or [])
+                        if str(detail).strip()
+                    ] or None,
                 )
             )
         by_agent.sort(key=lambda item: (-item.active_sessions, item.agent_name))

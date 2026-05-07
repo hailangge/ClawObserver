@@ -52,5 +52,22 @@
       "skin": "#8e5f3a"
     }
   },
-  "agents": {}
+  "agents": {
+    "planner": {
+      "roleStyleKey": "planner",
+      "workstationSlot": 0
+    },
+    "researcher": {
+      "roleStyleKey": "researcher",
+      "workstationSlot": 1
+    },
+    "operator": {
+      "roleStyleKey": "operator",
+      "workstationSlot": 2
+    },
+    "reviewer": {
+      "roleStyleKey": "reviewer",
+      "workstationSlot": 3
+    }
+  }
 }

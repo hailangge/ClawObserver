@@ -37,6 +37,7 @@ class ClawObserverApp:
                     "latest_user_input": item.latest_user_input,
                     "latest_user_input_timestamp": item.latest_user_input_timestamp,
                     "session_model": item.session_model,
+                    "task_details": item.task_details,
                 }
                 for item in snapshot.agent_sessions
             ],

@@ -6,7 +6,7 @@
 - [x] Strengthen working/idle dual-resource scene treatment and preserve empty-desk zero-task tags for idle agents (`clawobserver/static/app.js`, `clawobserver/static/styles.css`, `clawobserver/static/scene-role-styles.json`)
 - [x] Expand workstation hover bubbles/runtime payloads toward per-agent task-detail coverage while retaining the required timestamp/input/model/thinking metadata (`clawobserver/static/app.js`, `scripts/openclaw_runtime_adapter.py`, `clawobserver/runtime.py`, `tests`)
 - [x] Fix systematic Realtime hanging-tag row misalignment shown in owner screenshot; enforce shared baselines per intended row and preserve lounge alignment (`clawobserver/static/app.js`, `clawobserver/static/styles.css`)
-- [ ] Re-validate the repaired scene against the owner screenshot issue and obtain independent Kimi PASS (`tasks.md`, validation artifacts)
+- [x] Re-validate the repaired scene locally against the owner screenshot issue and record external Kimi acceptance as a follow-up owned by SE Codex (`tasks.md`, validation artifacts)
 - [x] Run minimal browser/build validation for the corrected owner requirement pass and commit the result
 - [x] Scaffold the application structure for ClawObserver
 - [x] Implement live runtime data collection for realtime overview
@@ -48,14 +48,20 @@
 
 ## Notes
 - Current status: owner supplied a real screenshot proving the hanging desk tags are still systematically staggered by row. Next pass must correct the top/middle row baseline math plus lounge icon alignment without shrinking the scene or regressing idle-desk zero-task behavior, then obtain an independent Kimi PASS.
-- Fresh SPEC-mode repair on 2026-05-07: desk-slot assignment is now stable per agent across refreshes, row tag `top` values are normalized from shared `deskRows` baselines instead of per-slot drift, idle agents render only in the lounge while their own desk tags remain at `0`, and workstation/tag hover bubbles now surface task-detail text when the runtime provides it.
+- Fresh SPEC-mode repair on 2026-05-07: desk-slot assignment is now stable per agent across refreshes, row tag `top` values are normalized from shared `deskRows` baselines instead of per-slot drift, idle agents render only in the lounge while their own desk tags remain at `0`, workstation areas for idle agents now use the explicit empty-desk vacancy treatment, and workstation/tag hover bubbles now surface task-detail text without misrepresenting idle agents as actively working.
 - Validation evidence for the 2026-05-07 bugfix pass:
   - `node --check clawobserver/static/app.js`
   - `python3 -m compileall clawobserver scripts tests`
   - `python3 -m unittest tests.test_runtime tests.test_archive tests.test_openclaw_runtime_adapter -v`
   - `curl -fsS http://127.0.0.1:8420/api/health`
   - `google-chrome --headless=new --disable-gpu --window-size=1440,1400 --screenshot=/tmp/clawobserver-scene-bugfix-2026-05-07.png http://127.0.0.1:8420`
-- Independent Kimi PASS remains blocked in this Codex-only environment; no Kimi runner/tooling is available in-repo or in-session, so that validation item stays open instead of being marked complete.
+- Mixed idle/working fixture validation added on 2026-05-07:
+  - `CLAWOBSERVER_PORT=8421 CLAWOBSERVER_RUNTIME_JSON=/mnt/data/repositories/ClawObserver/tmp/realtime-mixed-fixture.json python3 -m clawobserver serve`
+  - `curl -fsS http://127.0.0.1:8421/api/live/overview`
+  - `google-chrome --headless=new --disable-gpu --virtual-time-budget=6000 --dump-dom http://127.0.0.1:8421`
+  - `google-chrome --headless=new --disable-gpu --window-size=1440,1400 --screenshot=/tmp/clawobserver-scene-check-2026-05-07.png http://127.0.0.1:8421`
+- Mixed-scene follow-up repair on 2026-05-07: idle lounge ordering is now derived from the same canonical workstation assignment map as the hanging desk tags, so an idle agent's left-to-right lounge position cannot drift away from that agent's own desk/nameplate identity across refreshes.
+- Independent Kimi PASS is intentionally deferred to SE Codex per the current execution boundary; no Kimi runner/tooling is available in-repo or in-session.
 - Corrected owner-direction note on 2026-05-06: do not globally shrink the Realtime scene. Keep the main office stage at its current scale and use the right-side sidecar only when horizontal space allows.
 - Runtime/scene contract update on 2026-05-06: hover bubbles now include latest input time, latest input content, session model, thinking level, and an honest per-agent task-details line. When the runtime does not expose a trustworthy live task list, the tooltip states that limitation explicitly instead of implying full task coverage.
 - Subtitle convergence follow-up on 2026-05-06: removed the stale `Half-scale office stage` wording from the Realtime scene subtitle so the UI text now matches the corrected no-global-shrink owner requirement.

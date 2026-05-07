@@ -304,12 +304,14 @@ Avoid:
 - keep the Realtime page's central visualization region as a dedicated 3D-like office/work scene rather than downgrading it to ordinary summary panels
 - treat `/mnt/data/repositories/ClawObserver/docs/reference-ui-viz.jpg` as the scene source of truth: extract/crop its background as the base scene and mirror its layout, proportions, palette, and hanging-tag placement as closely as practical
 - preserve fixed character/nameplate anchor positions derived from the reference image, then render dynamic overlays at those exact anchors for agent name and current parallel task count
-- scale the scene presentation down to roughly half-size while preserving internal proportions, then use recovered page width to move supporting controls/content to the right when practical
+- keep the scene presentation at an overall size that already reads well in the current layout; only use right-side supporting controls/content when practical, without forcing a global shrink
 - enforce straight-row nameplate alignment by using normalized per-row tag baselines and consistent offsets from workstation anchors rather than per-agent drift
 - use blue/deep-tech lighting and office/workspace depth from the reference rather than abstract geometric substitutes
 - treat workstation and lounge zones as separate visual subregions: active agents appear only at desks, idle agents appear only in the lounge using dedicated resting artwork, and empty desks still retain their hanging nameplates with zero tasks
+- make working-versus-idle agent depiction explicit in renderer/component structure so the UI clearly uses distinct resources/visual treatment for desk work versus lounge rest states
 - drive role/agent appearance through external config plus renderer components so presentation can be restyled without rewriting placement logic
 - hover bubbles for workstation zones must include latest user-input timestamp, latest user-input content, model, and thinking level, positioned as an overlay that does not reflow the scene
+- when runtime data exposes multiple live tasks for the hovered agent, the tooltip should surface that task list in addition to the required latest-input/model/thinking metadata; when only aggregate/session-summary data exists, the UI must label that limitation honestly instead of implying a complete task inventory
 - when optional session-detail hover data is unavailable, show explicit deferred placeholders in the scene tooltip instead of silently suppressing that surface, or document the hook point if implementation is deferred
 
 ## 8. Operator documentation expectations

@@ -166,6 +166,31 @@ def extract_latest_user_message(session: dict[str, Any], store_entry: dict[str, 
     return None, None
 
 
+def extract_task_details(session: dict[str, Any], store_entry: dict[str, Any], recent_entry: dict[str, Any]) -> list[str]:
+    details: list[str] = []
+    for source in (session, recent_entry, store_entry):
+        if not isinstance(source, dict):
+            continue
+        raw_tasks = source.get("tasks") or source.get("activeTasks") or source.get("taskDetails")
+        if isinstance(raw_tasks, list):
+            for task in raw_tasks:
+                if isinstance(task, dict):
+                    summary = _first_non_none(task.get("title"), task.get("summary"), task.get("name"), task.get("content"))
+                else:
+                    summary = task
+                if isinstance(summary, str) and summary.strip():
+                    details.append(summary.strip())
+        elif isinstance(raw_tasks, str) and raw_tasks.strip():
+            details.append(raw_tasks.strip())
+    unique_details: list[str] = []
+    seen = set()
+    for item in details:
+        if item not in seen:
+            seen.add(item)
+            unique_details.append(item)
+    return unique_details
+
+
 def session_updated_on_date(
     *,
     session: dict[str, Any],
@@ -383,6 +408,7 @@ def build_payload_from_sources(
             "latest_user_input": None,
             "latest_user_input_timestamp": None,
             "session_model": None,
+            "task_details": [],
         }
     )
     provider_model_channel: dict[tuple[str, str, str], dict[str, int]] = defaultdict(
@@ -438,6 +464,7 @@ def build_payload_from_sources(
             store_entry.get("roleStyleKey"),
             store_entry.get("role_style_key"),
         )
+        task_details = extract_task_details(session, store_entry, recent_entry)
         agent_bucket = per_agent[str(agent)]
         if role_style_key and not agent_bucket["role_style_key"]:
             agent_bucket["role_style_key"] = str(role_style_key)
@@ -449,6 +476,9 @@ def build_payload_from_sources(
             agent_bucket["latest_user_input_timestamp"] = str(latest_user_input_timestamp)
         if model and not agent_bucket["session_model"]:
             agent_bucket["session_model"] = str(model)
+        for detail in task_details:
+            if detail not in agent_bucket["task_details"]:
+                agent_bucket["task_details"].append(detail)
 
         cache_metrics_present = any(
             source.get(field) is not None
@@ -530,6 +560,7 @@ def build_payload_from_sources(
                     "latest_user_input": counts.get("latest_user_input"),
                     "latest_user_input_timestamp": counts.get("latest_user_input_timestamp"),
                     "session_model": counts.get("session_model"),
+                    "task_details": counts.get("task_details") or None,
                 }
                 for agent, counts in sorted(per_agent.items())
             ],

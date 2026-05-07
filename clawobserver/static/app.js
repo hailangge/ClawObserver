@@ -23,7 +23,24 @@ const defaultSceneRoleStyles = {
       skin: "#f0c7a1",
     },
   },
-  agents: {},
+  agents: {
+    planner: {
+      roleStyleKey: "planner",
+      workstationSlot: 0,
+    },
+    researcher: {
+      roleStyleKey: "researcher",
+      workstationSlot: 1,
+    },
+    operator: {
+      roleStyleKey: "operator",
+      workstationSlot: 2,
+    },
+    reviewer: {
+      roleStyleKey: "reviewer",
+      workstationSlot: 3,
+    },
+  },
 };
 
 const referenceSceneLayout = {
@@ -236,10 +253,7 @@ function renderRealtime(payload, sceneRoleStyles) {
   const activeAgents = [...payload.agent_sessions]
     .filter((item) => item.active_sessions > 0)
     .sort((left, right) => right.active_sessions - left.active_sessions || String(left.agent_name).localeCompare(String(right.agent_name)));
-  const idleAgents = [...payload.agent_sessions]
-    .filter((item) => item.active_sessions === 0)
-    .sort((left, right) => right.total_sessions - left.total_sessions || String(left.agent_name).localeCompare(String(right.agent_name)));
-  const sceneModel = buildRealtimeSceneModel(payload, activeAgents, idleAgents, sceneRoleStyles);
+  const sceneModel = buildRealtimeSceneModel(payload, sceneRoleStyles);
 
   root.innerHTML = `
     <section class="metric-grid">
@@ -341,26 +355,44 @@ function normalizeSceneRoleStyles(payload) {
     ...defaultSceneRoleStyles.roles,
     ...(source.roles || {}),
   };
+  const agents = Object.fromEntries(
+    Object.entries(source.agents || {}).map(([agentName, config]) => [
+      agentName,
+      normalizeSceneAgentConfig(config),
+    ])
+  );
   return {
     defaultRoleStyle: source.defaultRoleStyle || defaultSceneRoleStyles.defaultRoleStyle,
     roles,
-    agents: source.agents || {},
+    agents,
   };
 }
 
-function buildRealtimeSceneModel(payload, activeAgents, idleAgents, sceneRoleStyles) {
-  const deskAssignments = assignSceneDeskSlots(payload.agent_sessions);
+function normalizeSceneAgentConfig(config) {
+  const source = config && typeof config === "object" ? config : {};
+  const workstationSlot = Number(source.workstationSlot);
+  return {
+    ...source,
+    workstationSlot: Number.isInteger(workstationSlot) && workstationSlot >= 0 ? workstationSlot : null,
+    roleStyleKey: typeof source.roleStyleKey === "string" && source.roleStyleKey.trim() ? source.roleStyleKey.trim() : null,
+  };
+}
+
+function buildRealtimeSceneModel(payload, sceneRoleStyles) {
+  const deskAssignments = assignSceneDeskSlots(payload.agent_sessions, sceneRoleStyles);
   const officeAssignments = referenceSceneLayout.activeSlots.map((slot, index) => {
     const source = deskAssignments[index];
     return source
       ? createSceneAgent(source, index, source.active_sessions > 0 ? "active" : "idle", sceneRoleStyles)
       : createUnassignedDeskSlot(index);
   });
+  const idleDeskAgents = officeAssignments.filter((agent) => agent.sceneState === "idle");
+  const activeDeskAgents = officeAssignments.filter((agent) => agent.sceneState === "active");
   return {
     officeAgents: officeAssignments,
-    idleLoungeAgents: idleAgents.slice(0, referenceSceneLayout.idleSlots.length).map((agent, index) => createSceneAgent(agent, index, "idle", sceneRoleStyles)),
-    activeWorkerCount: activeAgents.length,
-    restingWorkerCount: idleAgents.length,
+    idleLoungeAgents: idleDeskAgents.slice(0, referenceSceneLayout.idleSlots.length),
+    activeWorkerCount: activeDeskAgents.length,
+    restingWorkerCount: idleDeskAgents.length,
     rosterOverflow: Math.max(payload.agent_sessions.length - referenceSceneLayout.activeSlots.length, 0),
     captureStatus: payload.capture_status,
     queueSnapshot: payload.queue_lanes,
@@ -368,23 +400,37 @@ function buildRealtimeSceneModel(payload, activeAgents, idleAgents, sceneRoleSty
   };
 }
 
-function assignSceneDeskSlots(agentSessions) {
+function assignSceneDeskSlots(agentSessions, sceneRoleStyles) {
   const slotCount = referenceSceneLayout.activeSlots.length;
-  const previousAssignments = { ...(state.sceneDeskAssignments || {}) };
   const usedSlots = new Set();
   const bySlot = new Array(slotCount).fill(null);
   const nextAssignments = {};
   const orderedAgents = [...agentSessions].sort((left, right) =>
     String(left.agent_name).localeCompare(String(right.agent_name))
   );
+  const configuredAgents = sceneRoleStyles?.agents || {};
 
   orderedAgents.forEach((agent) => {
-    const previousSlot = previousAssignments[agent.agent_name];
-    if (Number.isInteger(previousSlot) && previousSlot >= 0 && previousSlot < slotCount && !usedSlots.has(previousSlot)) {
-      bySlot[previousSlot] = agent;
-      usedSlots.add(previousSlot);
-      nextAssignments[agent.agent_name] = previousSlot;
+    const configuredSlot = configuredAgents?.[agent.agent_name]?.workstationSlot;
+    if (!Number.isInteger(configuredSlot) || configuredSlot < 0 || configuredSlot >= slotCount || usedSlots.has(configuredSlot)) {
+      return;
     }
+    bySlot[configuredSlot] = agent;
+    usedSlots.add(configuredSlot);
+    nextAssignments[agent.agent_name] = configuredSlot;
+  });
+
+  orderedAgents.forEach((agent) => {
+    if (Object.prototype.hasOwnProperty.call(nextAssignments, agent.agent_name)) {
+      return;
+    }
+    const previousSlot = state.sceneDeskAssignments?.[agent.agent_name];
+    if (!Number.isInteger(previousSlot) || previousSlot < 0 || previousSlot >= slotCount || usedSlots.has(previousSlot)) {
+      return;
+    }
+    bySlot[previousSlot] = agent;
+    usedSlots.add(previousSlot);
+    nextAssignments[agent.agent_name] = previousSlot;
   });
 
   orderedAgents.forEach((agent) => {
@@ -449,7 +495,8 @@ function createUnassignedDeskSlot(index) {
 
 function resolveSceneRoleStyle(agent, sceneRoleStyles, index) {
   const styles = sceneRoleStyles || defaultSceneRoleStyles;
-  const roleKey = agent.role_style_key || styles.agents?.[agent.agent_name] || styles.defaultRoleStyle;
+  const agentConfig = styles.agents?.[agent.agent_name] || {};
+  const roleKey = agent.role_style_key || agentConfig.roleStyleKey || styles.defaultRoleStyle;
   const role = styles.roles?.[roleKey] || styles.roles?.[styles.defaultRoleStyle] || defaultSceneRoleStyles.roles.general_operator;
   const badgeBase = role.badge || String(agent.agent_name || "AG").slice(0, 2).toUpperCase();
   return {
@@ -538,8 +585,9 @@ function renderReferenceDeskSlot(agent, slot, index) {
   }
   const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
   const tagClassNames = ["scene-reference-tag", `scene-reference-tag-row-${slot.row + 1}`];
-  const deskStateClass = agent.sceneState === "active" ? "scene-reference-hotspot-active" : "scene-reference-hotspot-empty";
-  const workstationResource = agent.sceneState === "active"
+  const isWorkingDesk = agent.sceneState === "active";
+  const deskStateClass = isWorkingDesk ? "scene-reference-hotspot-active" : "scene-reference-hotspot-empty";
+  const workstationVisual = isWorkingDesk
     ? `
       <div
         class="scene-workstation-resource scene-workstation-resource-active"
@@ -547,7 +595,13 @@ function renderReferenceDeskSlot(agent, slot, index) {
         aria-hidden="true"
       ></div>
     `
-    : "";
+    : `
+      <div
+        class="scene-reference-vacancy"
+        style="${styleFromRect(normalizedSlot.character)}"
+        aria-hidden="true"
+      ></div>
+    `;
   return `
     <article
       class="scene-reference-slot scene-reference-slot-active"
@@ -566,7 +620,7 @@ function renderReferenceDeskSlot(agent, slot, index) {
         data-scene-zone="workstation"
         aria-label="${escapeAttribute(buildSceneAriaLabel(agent, `workstation ${index + 1}`))}"
       ></button>
-      ${workstationResource}
+      ${workstationVisual}
       <div
         class="${tagClassNames.join(" ")}"
         style="${styleFromRect(normalizedSlot.tag)}"
@@ -721,14 +775,17 @@ function formatSceneStateLabel(stateKey) {
 }
 
 function formatSceneTaskDetails(agent) {
+  if (agent.sceneState === "idle") {
+    const lastKnownContext = Array.isArray(agent.taskDetails) && agent.taskDetails.length
+      ? ` Latest known task context before idle: ${agent.taskDetails.join(" | ")}.`
+      : "";
+    return `0 active tasks. Idle agent is resting in the lounge; workstation remains empty.${lastKnownContext}`;
+  }
   if (Array.isArray(agent.taskDetails) && agent.taskDetails.length) {
     return agent.taskDetails.join(" | ");
   }
   if (agent.sceneState === "active") {
     return "Live runtime currently exposes task count only for this working agent.";
-  }
-  if (agent.sceneState === "idle") {
-    return "Idle agent is resting in the lounge; workstation remains empty with 0 active tasks.";
   }
   return "No tracked agent is currently assigned to this workstation anchor.";
 }
