@@ -74,3 +74,4 @@ class RuntimeSnapshot:
     queue_lanes: list[QueueLaneSample]
     gateways: list[GatewaySample]
     token_counters: list[TokenCounterSample]
+    runtime_status_reason: str | None = None

@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import tempfile
+import subprocess
 import unittest
+import time
 from datetime import datetime
 from pathlib import Path
+from unittest import mock
 
 from clawobserver.config import AppConfig
-from clawobserver.runtime import LiveRuntimeAdapter, build_demo_payload
+from clawobserver.runtime import (
+    LiveRuntimeAdapter,
+    RUNTIME_COMMAND_TIMEOUT_SECONDS,
+    build_demo_payload,
+)
 from clawobserver.app import ClawObserverApp
 
 
@@ -153,6 +160,175 @@ class RuntimeAdapterGatewayTests(unittest.TestCase):
         self.assertTrue(
             first_agent["task_details"] is None or isinstance(first_agent["task_details"], list)
         )
+
+    def test_runtime_command_timeout_returns_waiting_snapshot(self) -> None:
+        self.config.runtime_command = "mock-runtime"
+        with mock.patch(
+            "clawobserver.runtime.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(
+                cmd="mock-runtime",
+                timeout=RUNTIME_COMMAND_TIMEOUT_SECONDS,
+            ),
+        ):
+            snapshot = self.adapter.collect_snapshot(
+                at_time=datetime.fromisoformat("2026-05-08T12:00:00+00:00")
+            )
+
+        self.assertEqual(snapshot.capture_status, "waiting")
+        self.assertEqual(snapshot.source_version, "runtime-command-timeout")
+        self.assertEqual(snapshot.session_overview.total_sessions, 0)
+        self.assertEqual(snapshot.session_overview.active_sessions, 0)
+        gateway_counts = {
+            item.gateway_group: item.gateway_count
+            for item in snapshot.gateways
+        }
+        self.assertEqual(gateway_counts["total"], 0)
+        self.assertNotIn("offline", gateway_counts)
+
+    def test_runtime_command_nonzero_exit_returns_waiting_snapshot(self) -> None:
+        self.config.runtime_command = "mock-runtime"
+        with mock.patch(
+            "clawobserver.runtime.subprocess.run",
+            side_effect=subprocess.CalledProcessError(2, ["mock-runtime"]),
+        ):
+            snapshot = self.adapter.collect_snapshot(
+                at_time=datetime.fromisoformat("2026-05-08T12:00:00+00:00")
+            )
+
+        self.assertEqual(snapshot.capture_status, "waiting")
+        self.assertEqual(snapshot.source_version, "runtime-command-failed")
+        self.assertEqual(snapshot.session_overview.total_sessions, 0)
+
+    def test_runtime_command_invalid_json_returns_waiting_snapshot(self) -> None:
+        self.config.runtime_command = "mock-runtime"
+        completed = subprocess.CompletedProcess(
+            args=["mock-runtime"],
+            returncode=0,
+            stdout="not-json",
+            stderr="",
+        )
+        with mock.patch("clawobserver.runtime.subprocess.run", return_value=completed):
+            snapshot = self.adapter.collect_snapshot(
+                at_time=datetime.fromisoformat("2026-05-08T12:00:00+00:00")
+            )
+
+        self.assertEqual(snapshot.capture_status, "waiting")
+        self.assertEqual(snapshot.source_version, "runtime-command-invalid-json")
+        self.assertEqual(snapshot.session_overview.total_sessions, 0)
+
+    def test_runtime_command_timeout_budget_stays_below_frontend_live_fetch_timeout(self) -> None:
+        self.assertLess(RUNTIME_COMMAND_TIMEOUT_SECONDS, 4)
+
+    def test_runtime_command_slow_process_returns_waiting_before_frontend_timeout(self) -> None:
+        self.config.runtime_command = (
+            "python3 -c \"import time; time.sleep(10)\""
+        )
+
+        started_at = time.perf_counter()
+        snapshot = self.adapter.collect_snapshot(
+            at_time=datetime.fromisoformat("2026-05-08T12:00:00+00:00")
+        )
+        elapsed = time.perf_counter() - started_at
+
+        self.assertEqual(snapshot.capture_status, "waiting")
+        self.assertEqual(snapshot.source_version, "runtime-command-timeout")
+        self.assertLess(elapsed, 4.0)
+
+    def test_normalize_payload_degrades_null_sessions_to_waiting_snapshot(self) -> None:
+        snapshot = self.adapter._normalize_payload(
+            {
+                "captured_at": "2026-05-08T12:00:00+00:00",
+                "source_version": "repro-null-sessions",
+                "capture_status": "ok",
+                "sessions": None,
+                "queues": [],
+                "gateways": {"total": 0, "states": {}},
+                "tokens": [],
+            },
+            fallback_time=datetime.fromisoformat("2026-05-08T12:00:00+00:00"),
+        )
+
+        self.assertEqual(snapshot.capture_status, "waiting")
+        self.assertEqual(snapshot.source_version, "repro-null-sessions")
+        self.assertEqual(snapshot.session_overview.total_sessions, 0)
+        self.assertEqual(snapshot.session_overview.active_sessions, 0)
+        self.assertEqual(snapshot.session_overview.idle_sessions, 0)
+        self.assertEqual(snapshot.agent_sessions, [])
+        self.assertEqual(
+            [(item.state_name, item.session_count) for item in snapshot.session_states],
+            [("active", 0), ("idle", 0)],
+        )
+
+    def test_normalize_payload_preserves_runtime_status_reason(self) -> None:
+        snapshot = self.adapter._normalize_payload(
+            {
+                "captured_at": "2026-05-08T12:00:00+00:00",
+                "source_version": "openclaw-local-store-runtime",
+                "capture_status": "degraded",
+                "runtime_status_reason": "gateway call status timed out",
+                "sessions": {
+                    "total": 2,
+                    "active": 2,
+                    "by_agent": [
+                        {
+                            "agent_name": "main",
+                            "active_sessions": 2,
+                            "total_sessions": 2,
+                        }
+                    ],
+                    "by_state": [
+                        {"state_name": "active", "session_count": 2},
+                        {"state_name": "idle", "session_count": 0},
+                    ],
+                    "by_type": [
+                        {"session_type": "persistent", "session_count": 2},
+                    ],
+                },
+                "queues": [],
+                "gateways": {"total": 0, "states": {"offline": 1}},
+                "tokens": [],
+            },
+            fallback_time=datetime.fromisoformat("2026-05-08T12:00:00+00:00"),
+        )
+
+        self.assertEqual(snapshot.capture_status, "degraded")
+        self.assertEqual(snapshot.runtime_status_reason, "gateway call status timed out")
+        self.assertEqual(snapshot.session_overview.total_sessions, 2)
+
+    def test_normalize_payload_degrades_non_object_top_level_payload_to_waiting_snapshot(self) -> None:
+        snapshot = self.adapter._normalize_payload(
+            ["unexpected", "payload"],
+            fallback_time=datetime.fromisoformat("2026-05-08T12:00:00+00:00"),
+        )
+
+        self.assertEqual(snapshot.capture_status, "waiting")
+        self.assertEqual(snapshot.source_version, "unknown-runtime")
+        self.assertEqual(snapshot.session_overview.total_sessions, 0)
+        self.assertEqual(snapshot.session_overview.active_sessions, 0)
+        self.assertEqual(snapshot.queue_lanes, [])
+        self.assertEqual(
+            [(item.gateway_group, item.gateway_count) for item in snapshot.gateways],
+            [("total", 0)],
+        )
+
+    def test_normalize_payload_invalid_timestamp_uses_fallback_time(self) -> None:
+        fallback_time = datetime.fromisoformat("2026-05-08T12:00:00+00:00")
+        snapshot = self.adapter._normalize_payload(
+            {
+                "captured_at": "not-a-date",
+                "source_version": "invalid-timestamp-runtime",
+                "capture_status": "ok",
+                "sessions": None,
+                "queues": [],
+                "gateways": {"total": 0, "states": {}},
+                "tokens": [],
+            },
+            fallback_time=fallback_time,
+        )
+
+        self.assertEqual(snapshot.capture_status, "waiting")
+        self.assertEqual(snapshot.captured_at, fallback_time)
+        self.assertEqual(snapshot.source_version, "invalid-timestamp-runtime")
 
 
 if __name__ == "__main__":

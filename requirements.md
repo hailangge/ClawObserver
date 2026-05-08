@@ -216,3 +216,67 @@ These should be resolved conservatively during implementation:
 3. Does channel always exist for token accounting, or must the UI gracefully omit that breakdown?
 4. Are gateway historical error/start counts available from the runtime, or should they stay optional and hidden by default?
 5. Should OpenClaw expose a first-class gateway exits-today counter so ClawObserver can retire the journal heuristic where it is currently needed?
+
+## 11. Focused repair: Realtime hanging tags and agent status (2026-05-07)
+
+This repair is intentionally limited to the ClawObserver Realtime scene. It must not redesign unrelated UI.
+
+Functional requirements:
+- Hanging tags/nameplates in the Realtime scene must show the correct agent identity and that agent's current parallel task count.
+- A tag for an idle agent must remain attached to that agent's canonical workstation and display `0`, not another agent's count or a stale active count.
+- Lounge/resting visual placement must not cause the agent's workstation tag to appear under the wrong identity.
+- Agent status text/metadata shown in scene hover cards and scene DOM state must match runtime state: active agents are Working, idle agents are Idle/resting, unassigned anchors are Unassigned.
+- The status derivation must use live per-agent runtime fields conservatively, with `active_sessions > 0` treated as working and `active_sessions === 0` treated as idle/resting.
+- The fix must preserve the current reference-image scene layout, existing configurable role/agent presentation contract, and scope boundaries.
+
+Acceptance criteria for this repair:
+- Local tests or a browser/DOM smoke check demonstrate that configured agents keep their intended tag identity/count across mixed active/idle payloads.
+- Local tests or a browser/DOM smoke check demonstrate that scene status labels and DOM state agree with the live payload for active, idle, and unassigned slots.
+- `node --check clawobserver/static/app.js` and relevant Python/unit tests pass.
+- Independent `kimi-cli` validation reviews the final diff and verification evidence before completion.
+
+## 12. Focused repair: Realtime refresh must not fall into false Load failed (2026-05-08)
+
+This repair is limited to the ClawObserver Realtime page loading/refresh stability. It must not redesign unrelated UI.
+
+Observed behavior to reproduce:
+- Refreshing or re-entering the Realtime page can display `Load failed` even when the failure is transient or recoverable.
+- The current frontend treats any failed realtime fetch/poll as fatal and replaces the page with the generic failure panel.
+- In the current live repo state, `/api/live/overview` can still fail deterministically before the frontend retry logic matters when `clawobserver/runtime.py` normalizes a runtime payload containing `{"sessions": null}`. `LiveRuntimeAdapter._normalize_payload()` dereferenced `sessions.get(...)`, raised `AttributeError: 'NoneType' object has no attribute 'get'`, and the server returned HTTP 503 instead of an honest waiting payload.
+
+Functional requirements:
+- Initial Realtime load should only show `Load failed` for unrecoverable errors after reasonable retry/diagnostic handling; transient interface jitter must keep a loading/retrying state.
+- After a successful Realtime payload has rendered, subsequent polling failures must not replace the last good view with `Load failed`. The UI should keep the last good snapshot visible and show a degraded/retrying status.
+- Refresh/re-entry/navigation races must not allow stale request failures to overwrite newer successful Realtime renders.
+- Realtime loading must handle short API failures, aborted/obsolete requests, delayed style JSON, malformed/incompatible live payloads, and poll timing without false fatal failure states.
+- Realtime loading must also treat recoverable backend waiting/empty states as non-fatal first-frame payloads rather than endpoint crashes.
+- Explicitly null or malformed top-level live containers such as `sessions`, `queues`, `gateways`, or `tokens` must degrade to a truthful `capture_status: "waiting"` snapshot instead of crashing the live endpoint.
+- Any real unrecoverable error should expose a clear status/message and retry path.
+
+Validation requirements:
+- Add/update frontend logic tests for initial load retry, post-success polling failure, stale request failure suppression, and successful recovery after failure.
+- Add/update backend tests that reproduce the `sessions: null` runtime normalization crash and verify `/api/live/overview` stays HTTP 200 with a waiting payload after the repair.
+- Run local unit tests and syntax checks.
+- Perform browser-level or equivalent DOM-level validation for page refresh and continued realtime updates when practical.
+
+## 13. Focused repair: Realtime production runtime command must fail soft (2026-05-08)
+
+Owner validation and Kimi audit confirmed the Realtime page is still not fully fixed when ClawObserver uses the production runtime command.
+
+Observed failure chain:
+- `/api/live/overview` runs `CLAWOBSERVER_RUNTIME_COMMAND`, which invokes `scripts/openclaw_runtime_adapter.py`.
+- The adapter currently calls OpenClaw CLI commands without bounded timeouts and treats command failure as fatal.
+- `openclaw gateway call status --json` can time out / exit non-zero while the rest of runtime data is still recoverable.
+- `LiveRuntimeAdapter._load_payload()` runs the command with `check=True` and no timeout, so the HTTP request can hang then raise.
+- `clawobserver/server.py` only catches `ValueError`, so subprocess/runtime failures drop the HTTP connection instead of returning a controlled JSON response.
+- The frontend has no per-request fetch timeout, so each retry waits on the whole backend hang and eventually cycles into `Load failed`.
+- Real 8420 validation after those guards showed one remaining contract bug on the production path: the backend runtime-command fail-soft path still waited about 5.05s before returning a valid waiting payload, while `clawobserver/static/app.js` aborts `/api/live/overview` after `LIVE_FETCH_TIMEOUT_MS = 4000`. First-load realtime therefore still landed in `Load failed` even though the backend response body was recoverable.
+
+Requirements:
+- Production Realtime endpoint must return a bounded response time even if OpenClaw gateway calls hang/fail.
+- The bounded backend response time for `/api/live/overview` must stay below the frontend's 4s live fetch timeout so the first waiting payload can reach the browser.
+- `scripts/openclaw_runtime_adapter.py` must tolerate optional gateway command failures by returning a valid payload with `capture_status: "waiting"` / degraded metadata where possible.
+- `LiveRuntimeAdapter` must bound runtime command execution and convert command timeout/failure/invalid JSON into a recoverable live snapshot, not an unhandled request crash.
+- `server.py` must never drop `/api/live/overview` with an empty reply for expected runtime collection failures; it should return controlled JSON and status semantics.
+- Frontend realtime fetches must have a client-side timeout/abort so retries are not hostage to long backend hangs.
+- Tests must cover runtime command timeout/failure, adapter command failures, server controlled response, frontend hanging fetch timeout, and existing happy/waiting paths.

@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
@@ -15,6 +16,10 @@ SESSION_TYPE_PERSISTENT = "persistent"
 SESSION_TYPE_ONE_SHOT = "one_shot"
 DELIVERY_QUEUE_PENDING = "delivery_queue_pending"
 DELIVERY_QUEUE_FAILED = "delivery_queue_failed"
+ADAPTER_TIMEOUT_BUDGET_SECONDS = 2.5
+FALLBACK_SESSIONS_COMMAND_TIMEOUT_SECONDS = 0.8
+OPTIONAL_COMMAND_TIMEOUT_SECONDS = 0.4
+JOURNAL_COMMAND_TIMEOUT_SECONDS = 0.4
 
 
 def resolve_openclaw_bin() -> str:
@@ -29,8 +34,17 @@ def resolve_openclaw_bin() -> str:
     )
 
 
-def run_capture(cmd: list[str]) -> str:
-    return subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
+def _format_timeout_seconds(timeout_seconds: float) -> str:
+    return f"{timeout_seconds:g}s"
+
+
+def run_capture(cmd: list[str], *, timeout_seconds: float) -> str:
+    return subprocess.check_output(
+        cmd,
+        text=True,
+        stderr=subprocess.STDOUT,
+        timeout=timeout_seconds,
+    )
 
 
 def extract_first_json(text: str) -> Any:
@@ -46,11 +60,83 @@ def extract_first_json(text: str) -> Any:
     raise RuntimeError("No JSON payload found in command output")
 
 
-def run_optional_capture(cmd: list[str]) -> str | None:
+def run_optional_capture(
+    cmd: list[str],
+    *,
+    timeout_seconds: float = OPTIONAL_COMMAND_TIMEOUT_SECONDS,
+) -> str | None:
     try:
-        return run_capture(cmd)
-    except (FileNotFoundError, subprocess.CalledProcessError):
+        return run_capture(cmd, timeout_seconds=timeout_seconds)
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
+
+
+def build_waiting_payload(
+    *,
+    now: datetime,
+    reason: str,
+    gateway_status: dict[str, Any] | None = None,
+    gateway_call_status: dict[str, Any] | None = None,
+    delivery_queue_dir: Path | None = None,
+) -> dict[str, Any]:
+    queue_rows = extract_queue_rows(
+        _as_dict(gateway_call_status),
+        delivery_queue_dir=delivery_queue_dir,
+    )
+    gateway_status = _as_dict(gateway_status)
+    gateway_service = _as_dict(gateway_status.get("service"))
+    gateway_runtime = _as_dict(gateway_service.get("runtime"))
+    gateway_running = gateway_runtime.get("status") == "running"
+
+    return {
+        "captured_at": now.isoformat(),
+        "source_version": "openclaw-cli-runtime",
+        "capture_status": "waiting",
+        "sessions": {
+            "total": 0,
+            "active": 0,
+            "by_agent": [],
+            "by_state": [
+                {"state_name": "active", "session_count": 0},
+                {"state_name": "idle", "session_count": 0},
+            ],
+            "by_type": [],
+        },
+        "queues": queue_rows,
+        "gateways": {
+            "total": 1 if gateway_running else 0,
+            "states": {
+                "online": 1 if gateway_running else 0,
+                "offline": 0 if gateway_running else 1,
+            },
+        },
+        "tokens": [],
+        "runtime_status_reason": reason,
+    }
+ 
+
+def capture_json_command(
+    cmd: list[str],
+    *,
+    required: bool,
+    timeout_seconds: float,
+) -> tuple[Any, str | None]:
+    if timeout_seconds <= 0:
+        return None, f"{' '.join(cmd)} skipped because the adapter time budget was exhausted"
+    try:
+        return extract_first_json(run_capture(cmd, timeout_seconds=timeout_seconds)), None
+    except FileNotFoundError as error:
+        if required:
+            raise
+        return None, str(error)
+    except subprocess.TimeoutExpired:
+        return None, (
+            f"{' '.join(cmd)} timed out after {_format_timeout_seconds(timeout_seconds)}"
+        )
+    except subprocess.CalledProcessError as error:
+        return None, f"{' '.join(cmd)} exited with status {error.returncode}"
+    except RuntimeError as error:
+        return None, str(error)
 
 
 def resolve_delivery_queue_dir() -> Path:
@@ -58,6 +144,13 @@ def resolve_delivery_queue_dir() -> Path:
     if configured:
         return Path(configured).expanduser()
     return Path.home() / ".openclaw" / "delivery-queue"
+
+
+def resolve_openclaw_agents_dir() -> Path:
+    configured = os.getenv("OPENCLAW_AGENTS_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".openclaw" / "agents"
 
 
 def _to_int(value: Any, default: int = 0) -> int:
@@ -74,6 +167,14 @@ def _first_non_none(*values: Any) -> Any:
     return None
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
 def _normalize_session_type(raw_value: Any) -> str | None:
     value = str(raw_value or "").strip().lower()
     if value in {"persistent", "session"}:
@@ -81,6 +182,37 @@ def _normalize_session_type(raw_value: Any) -> str | None:
     if value in {"oneshot", "one-shot", "one_shot", "run"}:
         return SESSION_TYPE_ONE_SHOT
     return None
+
+
+def _derive_agent_name(session_key: str, fallback: str) -> str:
+    parts = session_key.split(":")
+    if len(parts) >= 2 and parts[0] == "agent" and parts[1]:
+        return parts[1]
+    return fallback
+
+
+def _derive_age_ms(entry: dict[str, Any], now: datetime) -> int:
+    for key in ("updatedAt", "lastInteractionAt", "startedAt", "sessionStartedAt"):
+        moment = coerce_timestamp(entry.get(key))
+        if moment is None:
+            continue
+        delta_ms = int(max((now - moment).total_seconds() * 1000, 0))
+        return delta_ms
+    return ACTIVE_WINDOW_MS + 1
+
+
+def _derive_session_kind(entry: dict[str, Any]) -> str:
+    for value in (
+        entry.get("chatType"),
+        entry.get("channel"),
+        entry.get("lastChannel"),
+        _as_dict(entry.get("deliveryContext")).get("channel"),
+        _as_dict(entry.get("origin")).get("chatType"),
+        _as_dict(entry.get("origin")).get("surface"),
+    ):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return "default"
 
 
 def _session_type_sort_key(session_type: str) -> tuple[int, str]:
@@ -166,6 +298,127 @@ def extract_latest_user_message(session: dict[str, Any], store_entry: dict[str, 
     return None, None
 
 
+def build_store_session_sources(now: datetime) -> dict[str, Any]:
+    agents_dir = resolve_openclaw_agents_dir()
+    stores: list[dict[str, Any]] = []
+    sessions: list[dict[str, Any]] = []
+    if not agents_dir.exists():
+        return {"stores": stores, "sessions": sessions}
+
+    for path in sorted(agents_dir.glob("*/sessions/sessions.json")):
+        stores.append({"path": str(path)})
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+
+        fallback_agent_name = path.parts[-3] if len(path.parts) >= 3 else "unknown"
+        for session_key, entry in payload.items():
+            if not isinstance(entry, dict):
+                continue
+            normalized_key = str(session_key)
+            sessions.append(
+                {
+                    "key": normalized_key,
+                    "agentId": _derive_agent_name(normalized_key, fallback_agent_name),
+                    "sessionId": entry.get("sessionId"),
+                    "updatedAt": entry.get("updatedAt"),
+                    "startedAt": entry.get("startedAt"),
+                    "lastInteractionAt": entry.get("lastInteractionAt"),
+                    "ageMs": _derive_age_ms(entry, now),
+                    "thinkingLevel": entry.get("thinkingLevel"),
+                    "inputTokens": entry.get("inputTokens"),
+                    "outputTokens": entry.get("outputTokens"),
+                    "cacheRead": entry.get("cacheRead"),
+                    "cacheWrite": entry.get("cacheWrite"),
+                    "model": entry.get("model"),
+                    "modelProvider": entry.get("modelProvider"),
+                    "kind": _derive_session_kind(entry),
+                    "channel": entry.get("channel") or entry.get("lastChannel"),
+                    "status": entry.get("status"),
+                    "session_type": entry.get("chatType"),
+                }
+            )
+
+    return {"stores": stores, "sessions": sessions}
+
+
+def merge_session_sources(
+    base_sources: dict[str, Any],
+    override_sources: dict[str, Any],
+) -> dict[str, Any]:
+    merged_stores: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    for store in _as_list(base_sources.get("stores")) + _as_list(override_sources.get("stores")):
+        if not isinstance(store, dict):
+            continue
+        path = store.get("path")
+        key = str(path) if path else json.dumps(store, sort_keys=True)
+        if key in seen_paths:
+            continue
+        seen_paths.add(key)
+        merged_stores.append(store)
+
+    sessions_by_key: dict[str, dict[str, Any]] = {}
+    for source in (_as_list(base_sources.get("sessions")), _as_list(override_sources.get("sessions"))):
+        for session in source:
+            if not isinstance(session, dict):
+                continue
+            key = session.get("key")
+            if not key:
+                continue
+            sessions_by_key[str(key)] = session
+
+    return {
+        "stores": merged_stores,
+        "sessions": list(sessions_by_key.values()),
+    }
+
+
+def count_session_rows(session_sources: dict[str, Any]) -> int:
+    return len(
+        [
+            session
+            for session in _as_list(_as_dict(session_sources).get("sessions"))
+            if isinstance(session, dict)
+        ]
+    )
+
+
+def _remaining_timeout_seconds(
+    deadline: float,
+    requested_timeout_seconds: float,
+) -> float:
+    return max(min(deadline - time.monotonic(), requested_timeout_seconds), 0.0)
+
+
+def build_fallback_session_sources(
+    *,
+    openclaw_bin: str,
+    now: datetime,
+    deadline: float,
+) -> tuple[dict[str, Any], list[str]]:
+    session_sources = {"stores": [], "sessions": []}
+    reasons: list[str] = []
+
+    quick_sessions_obj, quick_sessions_error = capture_json_command(
+        [openclaw_bin, "sessions", "--json", "--limit", "200"],
+        required=False,
+        timeout_seconds=_remaining_timeout_seconds(
+            deadline,
+            FALLBACK_SESSIONS_COMMAND_TIMEOUT_SECONDS,
+        ),
+    )
+    if isinstance(quick_sessions_obj, dict):
+        session_sources = merge_session_sources(session_sources, quick_sessions_obj)
+    elif quick_sessions_error:
+        reasons.append(quick_sessions_error)
+
+    return session_sources, reasons
+
+
 def extract_task_details(session: dict[str, Any], store_entry: dict[str, Any], recent_entry: dict[str, Any]) -> list[str]:
     details: list[str] = []
     for source in (session, recent_entry, store_entry):
@@ -210,7 +463,7 @@ def session_updated_on_date(
 
 def load_store_entries(session_sources: dict[str, Any]) -> dict[str, dict[str, Any]]:
     entries_by_key: dict[str, dict[str, Any]] = {}
-    for store in session_sources.get("stores", []):
+    for store in _as_list(_as_dict(session_sources).get("stores")):
         raw_path = store.get("path")
         if not raw_path:
             continue
@@ -230,7 +483,8 @@ def load_store_entries(session_sources: dict[str, Any]) -> dict[str, dict[str, A
 
 
 def derive_systemd_unit_name(gateway_status: dict[str, Any]) -> str | None:
-    source_path = gateway_status.get("service", {}).get("command", {}).get("sourcePath")
+    service = _as_dict(_as_dict(gateway_status).get("service"))
+    source_path = _as_dict(service.get("command")).get("sourcePath")
     if isinstance(source_path, str) and source_path.endswith(".service"):
         return Path(source_path).name
     configured = os.getenv("OPENCLAW_GATEWAY_SYSTEMD_UNIT")
@@ -240,7 +494,8 @@ def derive_systemd_unit_name(gateway_status: dict[str, Any]) -> str | None:
 
 
 def derive_gateway_exit_count(gateway_status: dict[str, Any]) -> tuple[int, str]:
-    runtime = gateway_status.get("service", {}).get("runtime", {})
+    service = _as_dict(_as_dict(gateway_status).get("service"))
+    runtime = _as_dict(service.get("runtime"))
     for key in ("exitCountToday", "exitsToday", "todayExitCount"):
         value = runtime.get(key)
         if isinstance(value, (int, float, str)):
@@ -249,7 +504,7 @@ def derive_gateway_exit_count(gateway_status: dict[str, Any]) -> tuple[int, str]
             except ValueError:
                 continue
 
-    if gateway_status.get("service", {}).get("label") == "systemd":
+    if service.get("label") == "systemd":
         unit_name = derive_systemd_unit_name(gateway_status)
         journal_output = run_optional_capture(
             [
@@ -262,7 +517,8 @@ def derive_gateway_exit_count(gateway_status: dict[str, Any]) -> tuple[int, str]
                 "--output",
                 "json",
                 "--no-pager",
-            ]
+            ],
+            timeout_seconds=JOURNAL_COMMAND_TIMEOUT_SECONDS,
         )
         if journal_output is not None:
             exit_events = 0
@@ -286,6 +542,7 @@ def extract_queue_rows(
     gateway_call_status: dict[str, Any],
     delivery_queue_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
+    gateway_call_status = _as_dict(gateway_call_status)
     delivery_queue_rows = extract_delivery_queue_rows(delivery_queue_dir)
     if delivery_queue_rows:
         return delivery_queue_rows
@@ -391,11 +648,39 @@ def build_payload_from_sources(
     now: datetime,
     store_entries: dict[str, dict[str, Any]],
     delivery_queue_dir: Path | None = None,
+    source_version: str = "openclaw-cli-runtime",
 ) -> dict[str, Any]:
-    sessions = sessions_obj.get("sessions", [])
+    missing = object()
+    sessions_obj = _as_dict(sessions_obj)
+    gateway_call_status = _as_dict(gateway_call_status)
+    gateway_status = _as_dict(gateway_status)
+
+    raw_sessions = sessions_obj.get("sessions", missing)
+    sessions = _as_list(raw_sessions)
+    has_session_data = len(sessions) > 0
+    source_issues: list[str] = []
+    raw_gateway_sessions = gateway_call_status.get("sessions", missing)
+    if raw_gateway_sessions is None:
+        source_issues.append("gateway sessions payload unavailable")
+    if raw_gateway_sessions is not missing and raw_gateway_sessions is not None and not isinstance(raw_gateway_sessions, dict):
+        source_issues.append("gateway sessions payload was malformed")
+    raw_recent_sessions = (
+        _as_dict(raw_gateway_sessions).get("recent", missing)
+        if isinstance(raw_gateway_sessions, dict)
+        else missing
+    )
+    if raw_recent_sessions is None:
+        source_issues.append("gateway recent sessions payload unavailable")
+    if raw_recent_sessions is not missing and raw_recent_sessions is not None and not isinstance(raw_recent_sessions, list):
+        source_issues.append("gateway recent sessions payload was malformed")
+    raw_gateway_service = gateway_status.get("service", missing)
+    if raw_gateway_service is None:
+        source_issues.append("gateway service payload unavailable")
+    if raw_gateway_service is not missing and raw_gateway_service is not None and not isinstance(raw_gateway_service, dict):
+        source_issues.append("gateway service payload was malformed")
     recent_sessions = {
         str(item.get("key")): item
-        for item in gateway_call_status.get("sessions", {}).get("recent", [])
+        for item in _as_list(raw_recent_sessions)
         if isinstance(item, dict) and item.get("key")
     }
 
@@ -522,9 +807,17 @@ def build_payload_from_sources(
                 "cache_metrics_present"
             ] = 1
 
-    gateway_runtime = gateway_status.get("service", {}).get("runtime", {})
+    gateway_service = _as_dict(gateway_status.get("service"))
+    gateway_runtime = _as_dict(gateway_service.get("runtime"))
     gateway_running = gateway_runtime.get("status") == "running"
     gateway_exit_count, gateway_exit_source = derive_gateway_exit_count(gateway_status)
+    capture_status = "ok"
+    if not isinstance(raw_sessions, list):
+        capture_status = "waiting"
+    elif source_issues and has_session_data:
+        capture_status = "degraded"
+    elif source_issues:
+        capture_status = "waiting"
 
     day_key = now.date().isoformat()
     token_rows = []
@@ -545,8 +838,8 @@ def build_payload_from_sources(
 
     return {
         "captured_at": now.isoformat(),
-        "source_version": "openclaw-cli-runtime",
-        "capture_status": "ok",
+        "source_version": source_version,
+        "capture_status": capture_status,
         "sessions": {
             "total": len(sessions),
             "active": active_count,
@@ -593,30 +886,99 @@ def build_payload_from_sources(
         },
         "gateway_exit_count_source": gateway_exit_source,
         "tokens": token_rows,
+        **(
+            {"runtime_status_reason": "; ".join(source_issues)}
+            if source_issues
+            else {}
+        ),
     }
 
 
 def build_payload() -> dict[str, Any]:
-    openclaw_bin = resolve_openclaw_bin()
-    sessions_obj = extract_first_json(
-        run_capture([openclaw_bin, "sessions", "--all-agents", "--json"])
-    )
-    gateway_call_status = extract_first_json(
-        run_capture([openclaw_bin, "gateway", "call", "status", "--json"])
-    )
-    gateway_status = extract_first_json(
-        run_capture([openclaw_bin, "gateway", "status", "--json"])
-    )
-
     now = datetime.now().astimezone()
+    deadline = time.monotonic() + ADAPTER_TIMEOUT_BUDGET_SECONDS
+    delivery_queue_dir = resolve_delivery_queue_dir()
+    status_reasons: list[str] = []
+    sessions_obj = build_store_session_sources(now)
+    session_row_count = count_session_rows(sessions_obj)
+    used_local_store = session_row_count > 0
+
+    try:
+        openclaw_bin = resolve_openclaw_bin()
+    except FileNotFoundError as error:
+        openclaw_bin = None
+        status_reasons.append(str(error))
+
+    if session_row_count == 0 and openclaw_bin:
+        sessions_obj, fallback_reasons = build_fallback_session_sources(
+            openclaw_bin=openclaw_bin,
+            now=now,
+            deadline=deadline,
+        )
+        status_reasons.extend(fallback_reasons)
+        session_row_count = count_session_rows(sessions_obj)
+
+    gateway_status: Any = {}
+    gateway_call_status: Any = {}
+    gateway_status_error = None
+    gateway_call_status_error = None
+    if openclaw_bin:
+        gateway_status, gateway_status_error = capture_json_command(
+            [openclaw_bin, "gateway", "status", "--json"],
+            required=False,
+            timeout_seconds=_remaining_timeout_seconds(
+                deadline,
+                OPTIONAL_COMMAND_TIMEOUT_SECONDS,
+            ),
+        )
+        gateway_call_status, gateway_call_status_error = capture_json_command(
+            [openclaw_bin, "gateway", "call", "status", "--json"],
+            required=False,
+            timeout_seconds=_remaining_timeout_seconds(
+                deadline,
+                OPTIONAL_COMMAND_TIMEOUT_SECONDS,
+            ),
+        )
+
+    if session_row_count == 0:
+        reason = "; ".join(status_reasons) or (
+            "No local OpenClaw session-store entries or bounded CLI sessions were available"
+        )
+        return build_waiting_payload(
+            now=now,
+            reason=reason,
+            gateway_status=_as_dict(gateway_status),
+            gateway_call_status=_as_dict(gateway_call_status),
+            delivery_queue_dir=delivery_queue_dir,
+        )
+
     store_entries = load_store_entries(sessions_obj)
-    return build_payload_from_sources(
+    payload = build_payload_from_sources(
         sessions_obj=sessions_obj,
-        gateway_call_status=gateway_call_status,
-        gateway_status=gateway_status,
+        gateway_call_status=_as_dict(gateway_call_status),
+        gateway_status=_as_dict(gateway_status),
         now=now,
         store_entries=store_entries,
+        delivery_queue_dir=delivery_queue_dir,
+        source_version=(
+            "openclaw-local-store-runtime"
+            if used_local_store
+            else "openclaw-cli-runtime"
+        ),
     )
+    status_reasons.extend(
+        reason
+        for reason in (gateway_status_error, gateway_call_status_error)
+        if reason
+    )
+    if payload.get("runtime_status_reason"):
+        status_reasons.insert(0, str(payload["runtime_status_reason"]))
+    status_reasons = [reason for reason in status_reasons if reason]
+    if status_reasons:
+        payload["runtime_status_reason"] = "; ".join(dict.fromkeys(status_reasons))
+        if payload.get("capture_status") != "waiting":
+            payload["capture_status"] = "degraded"
+    return payload
 
 
 def main() -> None:

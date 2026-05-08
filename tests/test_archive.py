@@ -7,6 +7,7 @@ from pathlib import Path
 
 import clawobserver.archive as archive_module
 from clawobserver.archive import ArchiveStore
+from clawobserver.app import ClawObserverApp
 from clawobserver.config import AppConfig
 from clawobserver.models import (
     AgentSessionSample,
@@ -285,6 +286,39 @@ class ArchiveQuerySemanticsTests(unittest.TestCase):
         self.assertEqual(payload["total_cache_write_tokens"], 15)
         self.assertAlmostEqual(payload["cache_hit_ratio"], 45 / 240)
         self.assertEqual(len(payload["daily_records"]), 1)
+
+    def test_capture_archive_snapshot_persists_non_empty_degraded_live_data(self) -> None:
+        app = ClawObserverApp(self.config)
+        snapshot = self._snapshot(
+            "2026-03-27T12:00:00+00:00",
+            active_sessions=6,
+            pending_queue_depth=0,
+            failed_queue_depth=2,
+        )
+        snapshot.capture_status = "degraded"
+        snapshot.source_version = "openclaw-local-store-runtime"
+        snapshot.runtime_status_reason = "gateway call status timed out"
+        app.live_adapter.collect_snapshot = lambda: snapshot
+
+        result = app.capture_archive_snapshot()
+
+        self.assertEqual(result["capture_status"], "degraded")
+        self.assertEqual(result["runtime_status_reason"], "gateway call status timed out")
+        payload = self.store.history_payload("current_day")
+        self.assertEqual(len(payload["points"]), 1)
+        self.assertEqual(payload["points"][0]["session_overview"]["total_sessions"], 11)
+        self.assertEqual(payload["points"][0]["session_overview"]["active_sessions"], 6)
+        queue_counts = {
+            item["lane_name"]: item["depth"]
+            for item in payload["points"][0]["queue_lanes"]
+        }
+        self.assertEqual(queue_counts["delivery_queue_failed"], 2)
+        with self.store._connect() as connection:
+            row = connection.execute(
+                "SELECT capture_status, source_version FROM archive_snapshots ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        self.assertEqual(row["capture_status"], "degraded")
+        self.assertEqual(row["source_version"], "openclaw-local-store-runtime")
 
     def _snapshot(
         self,

@@ -355,3 +355,62 @@ Recommended build order:
 2. Is gateway exits-today available as a first-class runtime/service value everywhere, or should the systemd journal heuristic remain the conservative default on Linux hosts?
 3. Are Agent Activity Statistics best represented as archived sampled counters, sampled rates, or a compact multi-series daily summary from the available runtime source?
 4. Should the archive scheduler live inside the app process or as a separate cron-safe collector command?
+
+## 13. Focused repair design: Realtime tag identity and status correctness (2026-05-07)
+
+Scope is limited to the Realtime scene renderer/model pipeline.
+
+Design decisions:
+- The scene model remains the single source for rendered workstations, lounge occupants, hanging tags, and tooltip/status payloads.
+- Workstation assignment must be deterministic and agent-centric: configured workstation slots win, previous refresh assignments may only fill unconfigured agents, and no agent may occupy more than one workstation anchor.
+- The hanging tag is rendered from the exact workstation agent object, never from lounge ordering or active-agent sorted lists.
+- Agent visual/status state is derived once while creating the scene agent object and reused for DOM attributes, aria labels, tooltip status, sidecar counts, and tests.
+- Idle agents keep their canonical desk tag with task count `0`; their lounge avatar is a secondary visual representation using the same scene agent object.
+- Unassigned desk anchors are explicit placeholders and must not be counted as idle agents.
+
+Testing strategy:
+- Add/adjust scene logic tests to cover configured mixed active/idle payloads where agent input order differs from workstation-slot order.
+- Assert rendered tag text, `data-scene-agent-name`, `data-scene-task-count`, `data-scene-state`, tooltip status, active/resting counts, and unassigned slot behavior.
+- Run frontend syntax checks, Python tests, a local browser/DOM smoke check, and independent `kimi-cli` acceptance review.
+
+## Realtime refresh stability design (2026-05-08)
+
+Current root-cause hypothesis:
+- `refreshPage()` uses one generic catch path for initial loads and background realtime polls. Any error from `/api/live/overview` or dependent assets calls `renderFailureState(...)`, so a single transient realtime failure can replace the last good realtime page with `Load failed`.
+- The request sequence check prevents some stale writes, but there is no state machine distinction between first load, recovered live data, retrying background poll, and terminal failure.
+- On the bundled OpenClaw adapter path, the deeper deterministic failure was earlier than the frontend state machine: `build_payload_from_sources()` assumed `gateway_call_status.sessions`, `gateway_call_status.sessions.recent`, and `gateway_status.service` always had dict/list shapes. During refresh/startup those values can be `null`, `[]`, or otherwise temporarily empty while OpenClaw is still warming its live gateway/session surfaces, which caused `/api/live/overview` to throw on every retry.
+- The current repo still has one more deterministic backend crash after those adapter guards: `clawobserver/runtime.py` still assumes the top-level `payload["sessions"]` object is always a dictionary. When the configured runtime command or runtime JSON returns `{"sessions": null}`, `_normalize_payload()` raises before the frontend can render a recoverable waiting state.
+
+Design direction:
+- Introduce explicit realtime load state: last successful payload/render timestamp, consecutive failure count, current request sequence, and whether a realtime view has rendered at least once.
+- Split initial-load failure handling from background-poll failure handling.
+- Preserve the last good realtime DOM on background failures and update only the status pill / inline transient warning.
+- Treat stale/obsolete request failures as no-ops.
+- Validate payload shape before rendering; invalid first payload may be fatal, invalid later payload should be treated as transient while preserving last good view.
+- Schedule bounded retries for transient realtime failures instead of parking permanently in `Load failed`.
+- Normalize recoverable backend waiting shapes into an honest live payload with empty totals / waiting capture status so the first screen can render while the gateway/session substructures are still warming up.
+- Extend that normalization one layer later in the pipeline as well: `LiveRuntimeAdapter._normalize_payload()` must treat malformed/null top-level containers as a waiting snapshot instead of dereferencing them.
+
+Testing strategy:
+- Node/vm tests around `refreshPage()` with fake DOM, fake timers, and programmable fetch responses.
+- Adapter tests should cover waiting gateway/session shapes that previously threw before any frontend retry could succeed.
+- Runtime/server tests should cover the proved `sessions: null` crash path so `/api/live/overview` returns HTTP 200 waiting JSON instead of HTTP 503.
+- Tests should cover: page refresh initial success, initial transient failure then recovery, background poll failure preserving prior DOM, stale failure after newer success, malformed payload behavior, and a first payload marked `capture_status: "waiting"` that still renders the Realtime scene instead of `Load failed`.
+
+## Realtime production runtime fail-soft design (2026-05-08)
+
+Kimi audit found the remaining root cause is the live data pipeline, not the scene renderer.
+
+Design:
+- Add bounded command execution in `scripts/openclaw_runtime_adapter.py` for OpenClaw CLI calls. Treat `sessions` as the most valuable source; gateway call/status failures should be represented as degraded/waiting payload fields rather than crashing the whole adapter.
+- Add bounded runtime command execution in `clawobserver/runtime.py`. On timeout, non-zero exit, or malformed JSON, construct a valid `RuntimeSnapshot` from a minimal waiting payload with source/error metadata, and keep that outer timeout budget below the frontend's 4s `/api/live/overview` abort so the first waiting frame can render.
+- Add broad but controlled API error handling in `clawobserver/server.py` for live runtime collection failures so clients receive JSON instead of an empty socket close.
+- Add frontend timeout support around `fetchJson()` for realtime requests using `AbortController`, ensuring each retry has a bounded duration.
+- Keep `Load failed` only for exhausted first-load attempts; subsequent polls preserve the last good snapshot.
+
+Testing:
+- Unit-test adapter command failure paths without invoking real OpenClaw.
+- Unit-test runtime command timeout/non-zero/invalid JSON fallback, including an elapsed-time contract proving the live endpoint's fail-soft path completes before the browser's 4s timeout budget.
+- Unit-test server `/api/live/overview` response when app collection raises.
+- VM-test frontend hanging fetch timeout so failure happens in bounded time rather than backend-duration time, and VM-test a delayed waiting payload that arrives just under the timeout and still renders the first Realtime frame.
+- Retain existing 28-test validation and HTTP fixture smoke checks.

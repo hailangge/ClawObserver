@@ -20,6 +20,9 @@ from .models import (
     TokenCounterSample,
 )
 
+# Keep the live endpoint's fail-soft path below the frontend's 4s fetch abort.
+RUNTIME_COMMAND_TIMEOUT_SECONDS = 3
+
 
 def _now() -> datetime:
     return datetime.now().astimezone()
@@ -28,7 +31,10 @@ def _now() -> datetime:
 def _parse_timestamp(raw_value: str | None, fallback: datetime) -> datetime:
     if not raw_value:
         return fallback
-    parsed = datetime.fromisoformat(raw_value)
+    try:
+        parsed = datetime.fromisoformat(raw_value)
+    except (TypeError, ValueError):
+        return fallback
     if parsed.tzinfo is None:
         return parsed.astimezone()
     return parsed.astimezone()
@@ -39,6 +45,14 @@ def _to_int(value: Any, default: int = 0) -> int:
         return max(int(value), 0)
     except (TypeError, ValueError):
         return default
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
 
 
 def _session_type_sort_key(session_type: str) -> tuple[int, str]:
@@ -180,6 +194,39 @@ def build_demo_payload(at_time: datetime | None = None) -> dict[str, Any]:
     }
 
 
+def build_waiting_payload(
+    *,
+    captured_at: datetime | None = None,
+    source_version: str = "runtime-waiting-fallback",
+    reason: str | None = None,
+) -> dict[str, Any]:
+    moment = captured_at or _now()
+    payload: dict[str, Any] = {
+        "captured_at": moment.isoformat(),
+        "source_version": source_version,
+        "capture_status": "waiting",
+        "sessions": {
+            "total": 0,
+            "active": 0,
+            "by_agent": [],
+            "by_state": [
+                {"state_name": "active", "session_count": 0},
+                {"state_name": "idle", "session_count": 0},
+            ],
+            "by_type": [],
+        },
+        "queues": [],
+        "gateways": {
+            "total": 0,
+            "states": {},
+        },
+        "tokens": [],
+    }
+    if reason:
+        payload["runtime_status_reason"] = reason
+    return payload
+
+
 class LiveRuntimeAdapter:
     def __init__(self, config: AppConfig):
         self._config = config
@@ -188,37 +235,92 @@ class LiveRuntimeAdapter:
         payload = self._load_payload(at_time=at_time)
         return self._normalize_payload(payload, fallback_time=at_time or _now())
 
-    def _load_payload(self, at_time: datetime | None = None) -> dict[str, Any]:
+    def _load_payload(self, at_time: datetime | None = None) -> Any:
+        fallback_time = at_time or _now()
         if self._config.runtime_command:
-            result = subprocess.run(
-                shlex.split(self._config.runtime_command),
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            return json.loads(result.stdout)
+            try:
+                result = subprocess.run(
+                    shlex.split(self._config.runtime_command),
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=RUNTIME_COMMAND_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                return build_waiting_payload(
+                    captured_at=fallback_time,
+                    source_version="runtime-command-timeout",
+                    reason=(
+                        f"Runtime command exceeded {RUNTIME_COMMAND_TIMEOUT_SECONDS}s timeout"
+                    ),
+                )
+            except subprocess.CalledProcessError as error:
+                return build_waiting_payload(
+                    captured_at=fallback_time,
+                    source_version="runtime-command-failed",
+                    reason=f"Runtime command exited with status {error.returncode}",
+                )
+            try:
+                return json.loads(result.stdout)
+            except json.JSONDecodeError:
+                return build_waiting_payload(
+                    captured_at=fallback_time,
+                    source_version="runtime-command-invalid-json",
+                    reason="Runtime command returned invalid JSON",
+                )
 
         if self._config.runtime_json_path and self._config.runtime_json_path.exists():
-            return json.loads(self._config.runtime_json_path.read_text(encoding="utf-8"))
+            try:
+                return json.loads(
+                    self._config.runtime_json_path.read_text(encoding="utf-8")
+                )
+            except OSError:
+                return build_waiting_payload(
+                    captured_at=fallback_time,
+                    source_version="runtime-json-read-failed",
+                    reason="Runtime JSON payload could not be read",
+                )
+            except json.JSONDecodeError:
+                return build_waiting_payload(
+                    captured_at=fallback_time,
+                    source_version="runtime-json-invalid-json",
+                    reason="Runtime JSON payload was invalid JSON",
+                )
 
         return build_demo_payload(at_time=at_time)
 
     def _normalize_payload(
         self,
-        payload: dict[str, Any],
+        payload: Any,
         fallback_time: datetime,
     ) -> RuntimeSnapshot:
-        captured_at = _parse_timestamp(payload.get("captured_at"), fallback_time)
-        source_version = str(payload.get("source_version", "unknown-runtime"))
-        capture_status = str(payload.get("capture_status", "ok"))
+        payload_dict = _as_dict(payload)
+        top_level_payload_is_valid = isinstance(payload, dict)
 
-        sessions = payload.get("sessions", {})
+        captured_at = _parse_timestamp(payload_dict.get("captured_at"), fallback_time)
+        source_version = str(payload_dict.get("source_version", "unknown-runtime"))
+        capture_status = str(payload_dict.get("capture_status", "ok"))
+        if not top_level_payload_is_valid:
+            capture_status = "waiting"
+        runtime_status_reason = (
+            str(payload_dict.get("runtime_status_reason")).strip()
+            if payload_dict.get("runtime_status_reason")
+            else None
+        )
+
+        raw_sessions = payload_dict.get("sessions")
+        sessions = _as_dict(raw_sessions)
+        if not isinstance(raw_sessions, dict):
+            capture_status = "waiting"
         total_sessions = _to_int(sessions.get("total"))
         active_sessions = _to_int(sessions.get("active"))
         idle_sessions = max(total_sessions - active_sessions, 0)
 
         by_agent = []
-        for item in sessions.get("by_agent", []):
+        for item in _as_list(sessions.get("by_agent")):
+            if not isinstance(item, dict):
+                capture_status = "waiting"
+                continue
             by_agent.append(
                 AgentSessionSample(
                     agent_name=str(item.get("agent_name", "unknown")),
@@ -259,7 +361,10 @@ class LiveRuntimeAdapter:
         by_agent.sort(key=lambda item: (-item.active_sessions, item.agent_name))
 
         by_state = []
-        for item in sessions.get("by_state", []):
+        for item in _as_list(sessions.get("by_state")):
+            if not isinstance(item, dict):
+                capture_status = "waiting"
+                continue
             by_state.append(
                 SessionStateSample(
                     state_name=str(item.get("state_name", "unknown")),
@@ -273,7 +378,10 @@ class LiveRuntimeAdapter:
             ]
 
         session_types = []
-        for item in sessions.get("by_type", []):
+        for item in _as_list(sessions.get("by_type")):
+            if not isinstance(item, dict):
+                capture_status = "waiting"
+                continue
             session_types.append(
                 SessionTypeSample(
                     session_type=str(item.get("session_type", "unknown")),
@@ -285,7 +393,13 @@ class LiveRuntimeAdapter:
         )
 
         queue_lanes = []
-        for item in payload.get("queues", []):
+        raw_queues = payload_dict.get("queues")
+        if raw_queues is not None and not isinstance(raw_queues, list):
+            capture_status = "waiting"
+        for item in _as_list(raw_queues):
+            if not isinstance(item, dict):
+                capture_status = "waiting"
+                continue
             queue_lanes.append(
                 QueueLaneSample(
                     lane_name=str(item.get("lane_name", "unknown")),
@@ -294,10 +408,19 @@ class LiveRuntimeAdapter:
             )
         queue_lanes.sort(key=lambda item: (-item.depth, item.lane_name))
 
-        gateways = self._normalize_gateways(payload.get("gateways", {}))
+        raw_gateways = payload_dict.get("gateways")
+        gateways = self._normalize_gateways(raw_gateways or {})
+        if raw_gateways is not None and not isinstance(raw_gateways, dict):
+            capture_status = "waiting"
 
         token_counters = []
-        for item in payload.get("tokens", []):
+        raw_tokens = payload_dict.get("tokens")
+        if raw_tokens is not None and not isinstance(raw_tokens, list):
+            capture_status = "waiting"
+        for item in _as_list(raw_tokens):
+            if not isinstance(item, dict):
+                capture_status = "waiting"
+                continue
             token_counters.append(
                 TokenCounterSample(
                     day_key=str(item.get("day_key", captured_at.date().isoformat())),
@@ -332,6 +455,7 @@ class LiveRuntimeAdapter:
             queue_lanes=queue_lanes,
             gateways=gateways,
             token_counters=token_counters,
+            runtime_status_reason=runtime_status_reason,
         )
 
     def _normalize_gateways(self, raw_gateways: Any) -> list[GatewaySample]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -24,7 +25,18 @@ def make_handler(app: ClawObserverApp) -> type[BaseHTTPRequestHandler]:
                     return
 
                 if parsed.path == "/api/live/overview":
-                    self._write_json(HTTPStatus.OK, app.live_overview_payload())
+                    try:
+                        self._write_json(HTTPStatus.OK, app.live_overview_payload())
+                    except Exception as error:
+                        self._write_json(
+                            HTTPStatus.SERVICE_UNAVAILABLE,
+                            {
+                                "error": "live runtime unavailable",
+                                "detail": str(error),
+                                "captured_at": datetime.now().astimezone().isoformat(),
+                                "capture_status": "waiting",
+                            },
+                        )
                     return
 
                 if parsed.path == "/api/history/overview":

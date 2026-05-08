@@ -20,6 +20,11 @@ class ClawObserverApp:
             "captured_at": snapshot.captured_at.isoformat(),
             "source_version": snapshot.source_version,
             "capture_status": snapshot.capture_status,
+            **(
+                {"runtime_status_reason": snapshot.runtime_status_reason}
+                if snapshot.runtime_status_reason
+                else {}
+            ),
             "refresh_seconds": self.config.refresh_seconds,
             "cadence_minutes": self.config.archive_cadence_minutes,
             "session_overview": {
@@ -84,6 +89,11 @@ class ClawObserverApp:
             "snapshot_id": snapshot_id,
             "captured_at": snapshot.captured_at.isoformat(),
             "capture_status": snapshot.capture_status,
+            **(
+                {"runtime_status_reason": snapshot.runtime_status_reason}
+                if snapshot.runtime_status_reason
+                else {}
+            ),
         }
 
     def seed_demo_history(self, days: int, interval_minutes: int | None = None) -> int:

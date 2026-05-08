@@ -2,11 +2,17 @@ const state = {
   page: "realtime",
   range: "current_day",
   liveTimer: null,
-  loadingKey: null,
   requestSequence: 0,
+  activeRequest: null,
+  lastRealtimeSnapshot: null,
   sceneRoleStyles: null,
   sceneDeskAssignments: {},
 };
+
+const LIVE_RETRY_DELAYS_MS = [250, 1000];
+const LIVE_RECOVERY_DELAY_MS = 3000;
+const DEFAULT_LIVE_REFRESH_SECONDS = 15;
+const LIVE_FETCH_TIMEOUT_MS = 4000;
 
 const palette = ["#64c0ff", "#5eb88d", "#d8aa5a", "#d16d73", "#7f9cf5", "#6fd0c4"];
 const defaultSceneRoleStyles = {
@@ -82,6 +88,7 @@ function bindNavigation() {
   document.querySelectorAll(".tab").forEach((button) => {
     button.addEventListener("click", () => {
       if (state.page === button.dataset.page) {
+        refreshPage();
         return;
       }
       state.page = button.dataset.page;
@@ -95,6 +102,7 @@ function bindNavigation() {
   document.querySelectorAll(".range-button").forEach((button) => {
     button.addEventListener("click", () => {
       if (state.range === button.dataset.range) {
+        refreshPage();
         return;
       }
       state.range = button.dataset.range;
@@ -123,59 +131,62 @@ async function refreshPage({ showLoading = true } = {}) {
   syncRangeSelectorVisibility();
   clearLiveRefresh();
   const requestKey = currentRequestKey();
-  if (state.loadingKey === requestKey) {
-    return;
-  }
-  state.loadingKey = requestKey;
-  const requestSequence = ++state.requestSequence;
+  const requestContext = beginPageRequest(requestKey);
+  const requestSequence = requestContext.id;
+  const isRealtimeRequest = requestContext.page === "realtime";
 
   if (showLoading) {
-    setStatus("Loading...");
-    renderRequestState("Loading...", loadingMessageForRequest());
+    if (isRealtimeRequest && hasRealtimeSnapshot()) {
+      setStatus("Refreshing live runtime...");
+    } else {
+      setStatus("Loading...");
+      renderRequestState("Loading...", loadingMessageForRequest());
+    }
   }
 
   try {
-    if (state.page === "realtime") {
-      const [payload, sceneRoleStyles] = await Promise.all([
-        fetchJson("/api/live/overview"),
-        loadSceneRoleStyles(),
-      ]);
-      if (requestSequence !== state.requestSequence) {
+    if (requestContext.page === "realtime") {
+      const { payload, sceneRoleStyles } = await loadRealtimeViewModel(requestContext, showLoading);
+      if (!isCurrentRequest(requestContext) || requestSequence !== state.requestSequence) {
         return;
       }
+      state.lastRealtimeSnapshot = { payload, sceneRoleStyles };
       renderRealtime(payload, sceneRoleStyles);
-      state.liveTimer = window.setTimeout(
-        () => refreshPage({ showLoading: false }),
-        payload.refresh_seconds * 1000
-      );
+      scheduleLiveRefresh(payload.refresh_seconds, false);
       return;
     }
 
-    if (state.page === "historical") {
-      const payload = await fetchJson(`/api/history/overview?range=${state.range}`);
-      if (requestSequence !== state.requestSequence) {
+    if (requestContext.page === "historical") {
+      const payload = await fetchJson(`/api/history/overview?range=${requestContext.range}`, {
+        signal: requestContext.controller.signal,
+      });
+      if (!isCurrentRequest(requestContext) || requestSequence !== state.requestSequence) {
         return;
       }
       renderHistorical(payload);
       return;
     }
 
-    const payload = await fetchJson(`/api/history/tokens?range=${state.range}`);
-    if (requestSequence !== state.requestSequence) {
+    const payload = await fetchJson(`/api/history/tokens?range=${requestContext.range}`, {
+      signal: requestContext.controller.signal,
+    });
+    if (!isCurrentRequest(requestContext) || requestSequence !== state.requestSequence) {
       return;
     }
     renderTokens(payload);
   } catch (error) {
-    if (requestSequence !== state.requestSequence) {
+    if (shouldIgnoreRequestError(requestContext, error) || requestSequence !== state.requestSequence) {
       return;
     }
     console.error(error);
+    if (requestContext.page === "realtime") {
+      handleRealtimeFailure(error);
+      return;
+    }
     setStatus("Load failed");
     renderFailureState("The latest data request failed. Retry the same page or range to fetch a fresh payload.");
   } finally {
-    if (state.loadingKey === requestKey) {
-      state.loadingKey = null;
-    }
+    completePageRequest(requestContext);
   }
 }
 
@@ -194,6 +205,161 @@ function clearLiveRefresh() {
     window.clearTimeout(state.liveTimer);
     state.liveTimer = null;
   }
+}
+
+function beginPageRequest(requestKey) {
+  if (state.activeRequest?.controller) {
+    state.activeRequest.controller.abort();
+  }
+  const requestContext = {
+    id: ++state.requestSequence,
+    key: requestKey,
+    page: state.page,
+    range: state.range,
+    controller: createAbortController(),
+  };
+  state.activeRequest = requestContext;
+  return requestContext;
+}
+
+function completePageRequest(requestContext) {
+  if (state.activeRequest?.id === requestContext.id) {
+    state.activeRequest = null;
+  }
+}
+
+function isCurrentRequest(requestContext) {
+  return state.activeRequest?.id === requestContext.id;
+}
+
+function shouldIgnoreRequestError(requestContext, error) {
+  return !isCurrentRequest(requestContext) || isAbortError(error);
+}
+
+function createAbortController() {
+  if (typeof AbortController === "function") {
+    return new AbortController();
+  }
+  return {
+    signal: { aborted: false, addEventListener: () => {} },
+    abort() {
+      this.signal.aborted = true;
+    },
+  };
+}
+
+function isAbortError(error) {
+  return Boolean(
+    error &&
+      (error.name === "AbortError" ||
+        error.code === "ABORT_ERR" ||
+        /aborted|aborterror/i.test(String(error.message || "")))
+  );
+}
+
+function hasRealtimeSnapshot() {
+  return Boolean(state.lastRealtimeSnapshot?.payload && state.lastRealtimeSnapshot?.sceneRoleStyles);
+}
+
+function scheduleLiveRefresh(refreshSeconds = DEFAULT_LIVE_REFRESH_SECONDS, showLoading = false) {
+  clearLiveRefresh();
+  const delayMs = Math.max(normalizePositiveInteger(refreshSeconds, DEFAULT_LIVE_REFRESH_SECONDS), 1) * 1000;
+  state.liveTimer = window.setTimeout(() => refreshPage({ showLoading }), delayMs);
+}
+
+async function loadRealtimeViewModel(requestContext, showLoading) {
+  const sceneRoleStylesPromise = loadSceneRoleStyles({ signal: requestContext.controller.signal });
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= LIVE_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const [rawPayload, sceneRoleStyles] = await Promise.all([
+        fetchJson("/api/live/overview", { signal: requestContext.controller.signal }),
+        sceneRoleStylesPromise,
+      ]);
+      return {
+        payload: normalizeLiveOverviewPayload(rawPayload),
+        sceneRoleStyles,
+      };
+    } catch (error) {
+      if (shouldIgnoreRequestError(requestContext, error)) {
+        throw error;
+      }
+      lastError = error;
+      if (attempt >= LIVE_RETRY_DELAYS_MS.length) {
+        break;
+      }
+      if (showLoading && !hasRealtimeSnapshot()) {
+        setStatus("Retrying live load...");
+        renderRequestState(
+          "Loading...",
+          `Live runtime request failed temporarily. Retrying (${attempt + 1}/${LIVE_RETRY_DELAYS_MS.length + 1}).`
+        );
+      } else {
+        setStatus("Live degraded · retrying...");
+      }
+      await waitForDelay(LIVE_RETRY_DELAYS_MS[attempt], requestContext.controller.signal);
+    }
+  }
+
+  throw lastError || new Error("Realtime load failed");
+}
+
+async function waitForDelay(delayMs, signal) {
+  if (!delayMs) {
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const timerId = window.setTimeout(() => {
+      cleanup();
+      resolve();
+    }, delayMs);
+
+    const handleAbort = () => {
+      window.clearTimeout(timerId);
+      cleanup();
+      reject(createAbortError());
+    };
+
+    const cleanup = () => {
+      if (signal?.removeEventListener) {
+        signal.removeEventListener("abort", handleAbort);
+      }
+    };
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+    if (signal?.addEventListener) {
+      signal.addEventListener("abort", handleAbort, { once: true });
+    }
+  });
+}
+
+function createAbortError() {
+  const error = new Error("Request aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function handleRealtimeFailure(error) {
+  if (state.page !== "realtime") {
+    return;
+  }
+  if (hasRealtimeSnapshot()) {
+    const capturedAt = state.lastRealtimeSnapshot.payload?.captured_at;
+    setStatus(`Live degraded · retrying · last good ${formatDateTime(capturedAt)}`);
+    scheduleLiveRefresh(Math.max(Math.round(LIVE_RECOVERY_DELAY_MS / 1000), 1), false);
+    return;
+  }
+  setStatus("Load failed");
+  renderFailureState(
+    `Unable to load live runtime data after retrying. ${formatLoadError(error)} Automatic retry continues in ${Math.round(
+      LIVE_RECOVERY_DELAY_MS / 1000
+    )}s.`
+  );
+  scheduleLiveRefresh(Math.max(Math.round(LIVE_RECOVERY_DELAY_MS / 1000), 1), true);
 }
 
 function setStatus(label) {
@@ -218,8 +384,15 @@ function renderFailureState(message) {
     <section class="panel loading-state">
       <h2>Load failed</h2>
       <p>${escapeHtml(message)}</p>
+      <button type="button" class="button-secondary" data-retry-current-view>Retry now</button>
     </section>
   `;
+  const retryButton = root.querySelector("[data-retry-current-view]");
+  if (retryButton) {
+    retryButton.addEventListener("click", () => {
+      refreshPage();
+    });
+  }
 }
 
 function loadingMessageForRequest() {
@@ -237,11 +410,215 @@ function currentRequestKey() {
 }
 
 async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+  const controller = createAbortController();
+  const signal = options?.signal;
+  const timeoutMs = normalizeFetchTimeout(url, options?.timeoutMs);
+  let timerId = null;
+  let cleanupAbortBinding = () => {};
+  const requestOptions = {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+    ...(options || {}),
+    signal: controller.signal,
+  };
+  if (options?.headers) {
+    requestOptions.headers = {
+      Accept: "application/json",
+      ...options.headers,
+    };
   }
-  return response.json();
+  cleanupAbortBinding = bindAbortSignals(signal, controller);
+  if (timeoutMs > 0) {
+    timerId = window.setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+  }
+  try {
+    const response = await fetch(url, requestOptions);
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    if (isAbortError(error) && timeoutMs > 0 && !signal?.aborted) {
+      throw new Error(
+        `Request timed out after ${Math.round(timeoutMs / 1000)}s`
+      );
+    }
+    throw error;
+  } finally {
+    cleanupAbortBinding();
+    if (timerId !== null) {
+      window.clearTimeout(timerId);
+    }
+  }
+}
+
+function normalizeFetchTimeout(url, explicitTimeoutMs) {
+  const configuredTimeout = normalizePositiveInteger(explicitTimeoutMs, 0);
+  if (configuredTimeout > 0) {
+    return configuredTimeout;
+  }
+  return url === "/api/live/overview" ? LIVE_FETCH_TIMEOUT_MS : 0;
+}
+
+function bindAbortSignals(sourceSignal, controller) {
+  if (!sourceSignal?.addEventListener) {
+    if (sourceSignal?.aborted) {
+      controller.abort();
+    }
+    return () => {};
+  }
+  if (sourceSignal.aborted) {
+    controller.abort();
+    return () => {};
+  }
+  const handleAbort = () => controller.abort();
+  sourceSignal.addEventListener("abort", handleAbort, { once: true });
+  return () => sourceSignal.removeEventListener("abort", handleAbort);
+}
+
+function normalizeLiveOverviewPayload(payload) {
+  const source = payload && typeof payload === "object" ? payload : {};
+  const sessionOverviewSource = source.session_overview || source.sessionOverview || source.sessions || {};
+  const activeSessions = normalizePositiveInteger(
+    sessionOverviewSource.active_sessions ??
+      sessionOverviewSource.activeSessions ??
+      sessionOverviewSource.active,
+    0
+  );
+  const totalSessions = normalizePositiveInteger(
+    sessionOverviewSource.total_sessions ??
+      sessionOverviewSource.totalSessions ??
+      sessionOverviewSource.total,
+    activeSessions
+  );
+  const idleSessions = normalizePositiveInteger(
+    sessionOverviewSource.idle_sessions ??
+      sessionOverviewSource.idleSessions ??
+      sessionOverviewSource.idle,
+    Math.max(totalSessions - activeSessions, 0)
+  );
+
+  return {
+    captured_at: normalizeString(source.captured_at ?? source.capturedAt, new Date().toISOString()),
+    source_version: normalizeString(source.source_version ?? source.sourceVersion, "unknown-runtime"),
+    capture_status: normalizeString(source.capture_status ?? source.captureStatus, "unknown"),
+    refresh_seconds: normalizePositiveInteger(
+      source.refresh_seconds ?? source.refreshSeconds,
+      DEFAULT_LIVE_REFRESH_SECONDS
+    ),
+    cadence_minutes: normalizePositiveInteger(source.cadence_minutes ?? source.cadenceMinutes, 30),
+    session_overview: {
+      total_sessions: totalSessions,
+      active_sessions: activeSessions,
+      idle_sessions: idleSessions,
+    },
+    agent_sessions: normalizeAgentSessions(source.agent_sessions || source.agentSessions),
+    session_states: normalizeNamedCountList(
+      source.session_states || source.sessionStates,
+      "state_name",
+      "session_count"
+    ),
+    session_types: normalizeNamedCountList(
+      source.session_types || source.sessionTypes,
+      "session_type",
+      "session_count"
+    ),
+    queue_lanes: normalizeNamedCountList(
+      source.queue_lanes || source.queueLanes || source.queues,
+      "lane_name",
+      "depth"
+    ),
+    gateways: normalizeGatewayList(source.gateways),
+  };
+}
+
+function normalizeAgentSessions(agentSessions) {
+  if (!Array.isArray(agentSessions)) {
+    return [];
+  }
+  return agentSessions.map((item, index) => ({
+    agent_name: normalizeString(item?.agent_name ?? item?.agentName, `agent-${index + 1}`),
+    active_sessions: normalizePositiveInteger(item?.active_sessions ?? item?.activeSessions, 0),
+    total_sessions: normalizePositiveInteger(item?.total_sessions ?? item?.totalSessions, 0),
+    role_style_key: normalizeOptionalString(item?.role_style_key ?? item?.roleStyleKey),
+    thinking_level: normalizeOptionalString(item?.thinking_level ?? item?.thinkingLevel),
+    latest_user_input: normalizeOptionalString(item?.latest_user_input ?? item?.latestUserInput),
+    latest_user_input_timestamp: normalizeOptionalString(
+      item?.latest_user_input_timestamp ?? item?.latestUserInputTimestamp
+    ),
+    session_model: normalizeOptionalString(item?.session_model ?? item?.sessionModel ?? item?.model),
+    task_details: normalizeStringList(item?.task_details ?? item?.taskDetails),
+  }));
+}
+
+function normalizeNamedCountList(items, nameKey, countKey) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  const camelNameKey = camelCaseKey(nameKey);
+  const camelCountKey = camelCaseKey(countKey);
+  return items.map((item, index) => ({
+    [nameKey]: normalizeString(item?.[nameKey] ?? item?.[camelNameKey], `${nameKey}-${index + 1}`),
+    [countKey]: normalizePositiveInteger(item?.[countKey] ?? item?.[camelCountKey], 0),
+  }));
+}
+
+function normalizeGatewayList(gateways) {
+  if (Array.isArray(gateways)) {
+    return normalizeNamedCountList(gateways, "gateway_group", "gateway_count");
+  }
+  if (gateways && typeof gateways === "object") {
+    return Object.entries(gateways)
+      .filter(([, value]) => typeof value !== "object")
+      .map(([gatewayGroup, gatewayCount]) => ({
+        gateway_group: gatewayGroup,
+        gateway_count: normalizePositiveInteger(gatewayCount, 0),
+      }));
+  }
+  return [];
+}
+
+function camelCaseKey(key) {
+  return String(key).replace(/_([a-z])/g, (_, character) => character.toUpperCase());
+}
+
+function normalizeString(value, fallback = "") {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  return fallback;
+}
+
+function normalizeOptionalString(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function normalizePositiveInteger(value, fallback = 0) {
+  const normalized = Number(value);
+  if (Number.isFinite(normalized) && normalized >= 0) {
+    return Math.trunc(normalized);
+  }
+  return fallback;
+}
+
+function normalizeStringList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values
+    .map((value) => normalizeOptionalString(value))
+    .filter((value) => Boolean(value));
+}
+
+function formatLoadError(error) {
+  const message = normalizeOptionalString(error?.message);
+  return message ? `Last error: ${message}.` : "The live runtime endpoint did not return a usable payload.";
 }
 
 function renderRealtime(payload, sceneRoleStyles) {
@@ -335,16 +712,21 @@ function renderRealtime(payload, sceneRoleStyles) {
   bindSceneTooltips(root);
 }
 
-async function loadSceneRoleStyles() {
+async function loadSceneRoleStyles(options = {}) {
   if (state.sceneRoleStyles) {
     return state.sceneRoleStyles;
   }
   try {
-    const payload = await fetchJson("/assets/scene-role-styles.json");
+    const payload = await fetchJson("/assets/scene-role-styles.json", {
+      signal: options.signal,
+    });
     state.sceneRoleStyles = normalizeSceneRoleStyles(payload);
   } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     console.warn("Failed to load scene role styles; using defaults.", error);
-    state.sceneRoleStyles = normalizeSceneRoleStyles(defaultSceneRoleStyles);
+    return normalizeSceneRoleStyles(defaultSceneRoleStyles);
   }
   return state.sceneRoleStyles;
 }
@@ -382,9 +764,7 @@ function buildRealtimeSceneModel(payload, sceneRoleStyles) {
   const deskAssignments = assignSceneDeskSlots(payload.agent_sessions, sceneRoleStyles);
   const officeAssignments = referenceSceneLayout.activeSlots.map((slot, index) => {
     const source = deskAssignments[index];
-    return source
-      ? createSceneAgent(source, index, source.active_sessions > 0 ? "active" : "idle", sceneRoleStyles)
-      : createUnassignedDeskSlot(index);
+    return source ? createSceneAgent(source, index, sceneRoleStyles) : createUnassignedDeskSlot(index);
   });
   const idleDeskAgents = officeAssignments.filter((agent) => agent.sceneState === "idle");
   const activeDeskAgents = officeAssignments.filter((agent) => agent.sceneState === "active");
@@ -450,17 +830,18 @@ function assignSceneDeskSlots(agentSessions, sceneRoleStyles) {
   return bySlot;
 }
 
-function createSceneAgent(agent, index, stateKey, sceneRoleStyles) {
+function createSceneAgent(agent, index, sceneRoleStyles) {
+  const runtimeState = deriveSceneAgentRuntime(agent);
   const roleStyle = resolveSceneRoleStyle(agent, sceneRoleStyles, index);
   return {
     id: slugify(agent.agent_name || `agent-${index}`),
     name: agent.agent_name,
-    activeSessions: Number(agent.active_sessions || 0),
+    activeSessions: runtimeState.activeSessions,
     totalSessions: Number(agent.total_sessions || 0),
-    taskCount: Number(agent.active_sessions || 0),
+    taskCount: runtimeState.taskCount,
     roleStyleKey: agent.role_style_key || roleStyle.key,
     roleStyle,
-    sceneState: stateKey,
+    sceneState: runtimeState.sceneState,
     thinkingLevel: agent.thinking_level || null,
     latestUserInput: agent.latest_user_input || null,
     latestUserInputTimestamp: agent.latest_user_input_timestamp || null,
@@ -469,6 +850,15 @@ function createSceneAgent(agent, index, stateKey, sceneRoleStyles) {
     deskLabel: `Desk ${index + 1}`,
     isPlaceholder: false,
     isUnassigned: false,
+  };
+}
+
+function deriveSceneAgentRuntime(agent) {
+  const activeSessions = Math.max(Number(agent?.active_sessions || 0), 0);
+  return {
+    activeSessions,
+    taskCount: activeSessions,
+    sceneState: activeSessions > 0 ? "active" : "idle",
   };
 }
 
@@ -567,6 +957,9 @@ function renderRealtimeScene(model) {
 
 function renderReferenceDeskSlot(agent, slot, index) {
   const normalizedSlot = normalizeReferenceDeskSlot(slot);
+  const stateLabel = formatSceneStateLabel(agent.sceneState);
+  const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
+  const tagClassNames = ["scene-reference-tag", `scene-reference-tag-row-${slot.row + 1}`];
   if (agent.isUnassigned) {
     return `
       <article
@@ -574,17 +967,28 @@ function renderReferenceDeskSlot(agent, slot, index) {
         data-scene-slot-index="${index + 1}"
         data-scene-row="${slot.row + 1}"
         data-scene-state="unassigned"
+        data-scene-status-label="${escapeAttribute(stateLabel)}"
+        data-scene-agent-name=""
+        data-scene-task-count="0"
       >
         <div
           class="scene-reference-vacancy"
           style="${styleFromRect(normalizedSlot.character)}"
           aria-hidden="true"
         ></div>
+        <div
+          class="${tagClassNames.join(" ")}"
+          style="${styleFromRect(normalizedSlot.tag)}"
+          data-scene-tooltip='${tooltipPayload}'
+          data-scene-zone="tag"
+          data-scene-row="${slot.row + 1}"
+          data-scene-baseline-top="${normalizedSlot.tag.top}"
+        >
+          <span class="scene-reference-tag-text">${escapeHtml(formatSceneTagText(agent))}</span>
+        </div>
       </article>
     `;
   }
-  const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
-  const tagClassNames = ["scene-reference-tag", `scene-reference-tag-row-${slot.row + 1}`];
   const isWorkingDesk = agent.sceneState === "active";
   const deskStateClass = isWorkingDesk ? "scene-reference-hotspot-active" : "scene-reference-hotspot-empty";
   const workstationVisual = isWorkingDesk
@@ -609,6 +1013,7 @@ function renderReferenceDeskSlot(agent, slot, index) {
       data-scene-slot-index="${index + 1}"
       data-scene-row="${slot.row + 1}"
       data-scene-state="${escapeAttribute(agent.sceneState)}"
+      data-scene-status-label="${escapeAttribute(stateLabel)}"
       data-scene-agent-name="${escapeAttribute(agent.name)}"
       data-scene-task-count="${escapeAttribute(String(agent.taskCount))}"
     >
@@ -637,11 +1042,13 @@ function renderReferenceDeskSlot(agent, slot, index) {
 
 function renderReferenceIdleSlot(agent, slot, index) {
   const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
+  const stateLabel = formatSceneStateLabel(agent.sceneState);
   return `
     <article
       class="scene-reference-slot scene-reference-slot-idle"
       style="--scene-accent:${escapeAttribute(agent.roleStyle.accent)}; --scene-accent-soft:${escapeAttribute(agent.roleStyle.accentSoft)}; --scene-desk-glow:${escapeAttribute(agent.roleStyle.deskGlow)};"
       data-scene-state="idle"
+      data-scene-status-label="${escapeAttribute(stateLabel)}"
       data-scene-zone="lounge"
       data-scene-agent-name="${escapeAttribute(agent.name)}"
       data-scene-task-count="${escapeAttribute(String(agent.taskCount))}"
@@ -678,7 +1085,8 @@ function normalizeReferenceDeskSlot(slot) {
 }
 
 function formatSceneTagText(agent) {
-  return `${agent.name} (${formatNumber(agent.taskCount)})`;
+  const tagLabel = normalizeOptionalString(agent?.name) || "Unassigned";
+  return `${tagLabel} (${formatNumber(agent?.taskCount)})`;
 }
 
 function buildSceneAriaLabel(agent, areaLabel) {
@@ -699,6 +1107,9 @@ function buildSceneTooltipPayload(agent) {
 }
 
 function bindSceneTooltips(scope) {
+  if (!scope || typeof scope.querySelectorAll !== "function") {
+    return;
+  }
   const tooltip = ensureSceneTooltip(scope);
   scope.querySelectorAll("[data-scene-tooltip]").forEach((node) => {
     const showTooltip = (event) => {
@@ -730,7 +1141,9 @@ function ensureSceneTooltip(scope) {
     tooltip = document.createElement("div");
     tooltip.className = "scene-hover-tooltip";
     tooltip.hidden = true;
-    scope.appendChild(tooltip);
+    if (typeof scope.appendChild === "function") {
+      scope.appendChild(tooltip);
+    }
   }
   return tooltip;
 }

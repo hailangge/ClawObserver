@@ -1,118 +1,52 @@
 # Tasks
 
 ## In progress
-- [x] Confirm scope from `requirements.md` and `design.md`
-- [x] Align corrected owner requirements across the scene renderer and runtime payload contract without forcing a global scene shrink (`requirements.md`, `design.md`, `tasks.md`)
-- [x] Strengthen working/idle dual-resource scene treatment and preserve empty-desk zero-task tags for idle agents (`clawobserver/static/app.js`, `clawobserver/static/styles.css`, `clawobserver/static/scene-role-styles.json`)
-- [x] Expand workstation hover bubbles/runtime payloads toward per-agent task-detail coverage while retaining the required timestamp/input/model/thinking metadata (`clawobserver/static/app.js`, `scripts/openclaw_runtime_adapter.py`, `clawobserver/runtime.py`, `tests`)
-- [x] Fix systematic Realtime hanging-tag row misalignment shown in owner screenshot; enforce shared baselines per intended row and preserve lounge alignment (`clawobserver/static/app.js`, `clawobserver/static/styles.css`)
-- [x] Re-validate the repaired scene locally against the owner screenshot issue and record external Kimi acceptance as a follow-up owned by SE Codex (`tasks.md`, validation artifacts)
-- [x] Run minimal browser/build validation for the corrected owner requirement pass and commit the result
-- [x] Scaffold the application structure for ClawObserver
-- [x] Implement live runtime data collection for realtime overview
-- [x] Implement archive schema and 30-minute snapshot pipeline
-- [x] Implement realtime overview UI
-- [x] Implement historical views with day-last-record behavior
-- [x] Implement token statistics page
-- [x] Run local integration/system validation
-- [x] Validate against a real OpenClaw runtime source
-- [x] Add user-level systemd service/timer deployment
-- [x] Register and validate the running user services
-- [x] Add public-release deployment script and detailed README manual
-- [x] Publish to a public GitHub repository
-- [x] Add MIT license and first public release tag
-- [x] Add branded ClawObserver header artwork/logo
-- [x] Add Y-axis labels and hover tooltips to historical charts
-- [x] Add gateway exit counts to realtime and historical monitoring
-- [x] Update operator manual/spec docs for the new UX and gateway reliability metrics
-- [x] Final review and commit implementation changes
-- [x] Investigate and improve Queue Depth by Lane real data sourcing
-- [x] Rework historical session charts (Total/Idle/Active + session-type pie)
-- [x] Remove redundant per-agent historical chart
-- [x] Add token cache-hit ratio if the runtime exposes it cleanly
-- [x] Improve historical multi-series tooltip behavior
-- [x] Update manual/spec docs for the new historical UX and queue semantics
-- [x] Run validation for the optimization pass
-- [x] Commit the optimization pass
-- [x] Recalibrate queue depth against the real OpenClaw delivery queue source
-- [x] Fix token statistics day-key aggregation for historical ranges
-- [x] Add compact token-count formatting across token UI displays
-- [x] Add visible loading states for page and range transitions
-- [x] Run validation for the token statistics repair pass
-- [x] Hide time-range selector on Realtime page
-- [x] Fix Gateway exits today collection from systemd journal
-- [x] Fix token statistics undercounting by summing cumulative snapshot diffs
-- [x] Restore and redesign the central Realtime visualization region as the main deep-tech agent-work scene
-- [x] Add config-driven scene role styling plus optional session-detail tooltip placeholders for the Realtime scene
-- [x] Validate the rebuilt Realtime scene in a real browser render and commit the correction
+
+- [x] Restore the real OpenClaw data chain so Realtime and archive capture stop writing empty/waiting-only snapshots when bounded local session stores are available (`scripts/openclaw_runtime_adapter.py`, `clawobserver/runtime.py`, `clawobserver/app.py`).
+- [x] Prove the true chain split: frontend, archive schema, timer, and SQLite insertion were healthy; the empty-today failure came from the runtime adapter's hanging all-agents/gateway collection path zeroing the upstream snapshot before archive capture (`tasks.md`, live validation).
+- [x] Reconnect Phase A historical restoration and Phase B live OpenClaw data collection with regression tests covering local-store-primary sessions plus degraded gateway/all-agents failures (`tests/test_openclaw_runtime_adapter.py`, `tests/test_runtime.py`, `tests/test_server.py`, `tests/test_archive.py`).
+- [x] Reproduce and document the actual Realtime refresh failure chain, including the backend `/api/live/overview` waiting-shape crash (`scripts/openclaw_runtime_adapter.py`, tests, spec docs).
+- [x] Explain and verify why retries remained ineffective before the fix: the adapter hit the same deterministic nested-shape exception on every request before any first successful payload existed.
+- [x] Fix the core cause in code by normalizing recoverable gateway/session waiting shapes into a valid live payload instead of throwing (`scripts/openclaw_runtime_adapter.py`).
+- [x] Add/update tests that cover the root cause and repaired first-screen refresh path, not just retry behavior (`tests/test_openclaw_runtime_adapter.py`, `tests/test_realtime_scene_logic.py`).
+- [x] Reproduce the still-open live failure in the current repo state: `clawobserver/runtime.py` crashes on `sessions: null`, which makes `/api/live/overview` return 503 and drives first-load `Load failed`.
+- [x] Fix `clawobserver/runtime.py` normalization so null/malformed top-level runtime containers degrade to `capture_status: "waiting"` instead of throwing.
+- [x] Add regression coverage for the repaired runtime/server path (`tests/test_runtime.py`, `tests/test_server.py`).
+- [x] Extend the runtime/server guard to malformed top-level live payloads and invalid `captured_at`, which still bypassed waiting-state normalization and could keep `/api/live/overview` on the 503 path (`clawobserver/runtime.py`, `tests/test_runtime.py`, `tests/test_server.py`).
+- [x] Add bounded/fail-soft OpenClaw CLI command handling in `scripts/openclaw_runtime_adapter.py`.
+- [x] Add bounded/fail-soft runtime command handling in `clawobserver/runtime.py`.
+- [x] Add controlled live API error response handling in `clawobserver/server.py`.
+- [x] Add frontend realtime fetch timeout handling in `clawobserver/static/app.js`.
+- [x] Add tests for adapter command failure, runtime command timeout/failure, server controlled response, and frontend hanging fetch timeout.
+- [x] Fix the real 8420 timeout-contract mismatch: backend runtime-command fail-soft now returns before the frontend's 4s live abort so first-load waiting payloads can render.
+- [x] Add regression coverage for the 8420 timeout contract and a delayed first waiting payload reaching the Realtime scene.
+- [x] Re-run unit, syntax, compile, HTTP smoke, and production-like runtime failure validation.
+- [x] Run local unit/syntax checks and browser/DOM-level validation for Realtime refresh, first load, continued updates, and short recovery.
+- [x] Repair Realtime scene model/tag/status logic for mixed active/idle agents (`clawobserver/static/app.js`, `tests/test_realtime_scene_logic.py`)
+- [x] Validate locally with syntax/unit/browser-or-DOM smoke checks (`clawobserver/static/app.js`, `tests`)
+- [x] Run independent Kimi acceptance review (`kimi-cli`) — **accepted 2026-05-08**
+- [x] Record concise result and key validation in workspace memory (`/mnt/data/workspace-se-codex/memory/2026-05-08.md`)
+- [x] Fix Realtime hanging-tag placeholder rendering so waiting/unassigned desks still show explicit tag label/count instead of dropping tag DOM (`clawobserver/static/app.js`, `tests/test_realtime_scene_logic.py`)
+- [x] Validate hanging-tag regression with targeted DOM-string tests plus JavaScript syntax check (`tests/test_realtime_scene_logic.py`, `node --check clawobserver/static/app.js`)
+- [x] Phase A: restore historically normal non-empty Realtime behavior by preventing all-agents CLI failure from collapsing the page into an empty/waiting shell (`scripts/openclaw_runtime_adapter.py`, `tests/test_openclaw_runtime_adapter.py`, `tests/test_realtime_scene_logic.py`)
+- [x] Phase B: connect truthful OpenClaw realtime session data from bounded local runtime sources by rebuilding all-agent session payloads from `~/.openclaw/agents/*/sessions/sessions.json` and merging fast CLI data when available (`scripts/openclaw_runtime_adapter.py`, `tests/test_openclaw_runtime_adapter.py`)
+- [x] Validate the repaired real runtime path end-to-end with the production adapter command and confirm non-empty `openclaw-cli-runtime` payloads despite degraded gateway/all-agent commands
+
+## Done
+- [x] Confirm focused scope: only ClawObserver Realtime hanging-tag display and agent status display
+- [x] Update SPEC docs for the focused 2026-05-07 repair (`requirements.md`, `design.md`, `tasks.md`)
 
 ## Notes
-- Current status: owner supplied a real screenshot proving the hanging desk tags are still systematically staggered by row. Next pass must correct the top/middle row baseline math plus lounge icon alignment without shrinking the scene or regressing idle-desk zero-task behavior, then obtain an independent Kimi PASS.
-- Fresh SPEC-mode repair on 2026-05-07: desk-slot assignment is now stable per agent across refreshes, row tag `top` values are normalized from shared `deskRows` baselines instead of per-slot drift, idle agents render only in the lounge while their own desk tags remain at `0`, workstation areas for idle agents now use the explicit empty-desk vacancy treatment, and workstation/tag hover bubbles now surface task-detail text without misrepresenting idle agents as actively working.
-- Validation evidence for the 2026-05-07 bugfix pass:
-  - `node --check clawobserver/static/app.js`
-  - `python3 -m compileall clawobserver scripts tests`
-  - `python3 -m unittest tests.test_runtime tests.test_archive tests.test_openclaw_runtime_adapter -v`
-  - `curl -fsS http://127.0.0.1:8420/api/health`
-  - `google-chrome --headless=new --disable-gpu --window-size=1440,1400 --screenshot=/tmp/clawobserver-scene-bugfix-2026-05-07.png http://127.0.0.1:8420`
-- Mixed idle/working fixture validation added on 2026-05-07:
-  - `CLAWOBSERVER_PORT=8421 CLAWOBSERVER_RUNTIME_JSON=/mnt/data/repositories/ClawObserver/tmp/realtime-mixed-fixture.json python3 -m clawobserver serve`
-  - `curl -fsS http://127.0.0.1:8421/api/live/overview`
-  - `google-chrome --headless=new --disable-gpu --virtual-time-budget=6000 --dump-dom http://127.0.0.1:8421`
-  - `google-chrome --headless=new --disable-gpu --window-size=1440,1400 --screenshot=/tmp/clawobserver-scene-check-2026-05-07.png http://127.0.0.1:8421`
-- Mixed-scene follow-up repair on 2026-05-07: idle lounge ordering is now derived from the same canonical workstation assignment map as the hanging desk tags, so an idle agent's left-to-right lounge position cannot drift away from that agent's own desk/nameplate identity across refreshes.
-- Independent Kimi PASS is intentionally deferred to SE Codex per the current execution boundary; no Kimi runner/tooling is available in-repo or in-session.
-- Corrected owner-direction note on 2026-05-06: do not globally shrink the Realtime scene. Keep the main office stage at its current scale and use the right-side sidecar only when horizontal space allows.
-- Runtime/scene contract update on 2026-05-06: hover bubbles now include latest input time, latest input content, session model, thinking level, and an honest per-agent task-details line. When the runtime does not expose a trustworthy live task list, the tooltip states that limitation explicitly instead of implying full task coverage.
-- Subtitle convergence follow-up on 2026-05-06: removed the stale `Half-scale office stage` wording from the Realtime scene subtitle so the UI text now matches the corrected no-global-shrink owner requirement.
-- Validation evidence for the adjustment pass:
-  - Re-verified on 2026-05-06 in a fresh follow-up session with `curl -fsS http://127.0.0.1:8420/api/health`, `python3 - <<'PY' ... urllib.request.urlopen('http://127.0.0.1:8420/api/live/overview') ... PY`, and `google-chrome --headless=new --disable-gpu --window-size=1440,1400 --screenshot=/tmp/clawobserver-subagent-check.png http://127.0.0.1:8420`
-  - `node --check clawobserver/static/app.js`
-  - `python3 -m compileall clawobserver scripts tests`
-  - `python3 -m unittest tests.test_runtime tests.test_archive tests.test_openclaw_runtime_adapter -v`
-  - Live `/api/health` check against `python3 -m clawobserver serve`
-  - Headless Chrome screenshot: `/tmp/clawobserver-adjustments.png`
-  - Headless DOM inspection confirmed `.scene-layout` + `.scene-sidecar`, six `.scene-idle-avatar` lounge occupants, row-1 tags all at `top:10.3%`, row-2 tags all at `top:38.8%`, and eight visible zero-task workstation tags.
-- Fix validation results:
-  1. **Time-range selector**: Hidden on Realtime page via `syncRangeSelectorVisibility()` function in app.js
-  2. **Gateway exits today**: Correctly counted via systemd journal heuristic (showing 4 exits today)
-  3. **Token statistics**: Using cumulative diff aggregation with LAG window function to handle counter resets
-- Live verification:
-  - Runtime adapter reports `exits_today: 4` with source `systemd-journal-heuristic`
-  - API `/api/live/overview` shows correct gateway exit counts
-  - Token aggregation returns meaningful totals (949,303 input tokens, 10,384 output tokens for current day)
-  - All unit tests pass (15/15)
-- The fixes address the exact issues reported:
-  - Realtime page no longer shows time-range selector
-  - Gateway exits are accurately detected from systemd journal
-  - Token undercounting resolved via cumulative diff aggregation
-- App scaffold created with a dependency-light Python server, SQLite archive store, static UI shell, and built-in demo runtime adapter for local validation.
-- Verified locally on 2026-03-27: `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver`, seeded demo history, served the app, and smoke-tested `/api/health`, `/api/live/overview`, `/api/history/overview?range=last_7_days`, `/api/history/tokens?range=last_7_days`, and `POST /api/archive/capture` successfully.
-- Verified against a real OpenClaw runtime source on 2026-03-27 by setting `CLAWOBSERVER_RUNTIME_COMMAND` to the bundled adapter, which now combines `openclaw sessions --all-agents --json`, `openclaw gateway call status --json`, `openclaw gateway status --json`, and session-store cache counters. Smoke tests for `/api/health`, `/api/live/overview`, `/api/history/overview?range=current_day`, `/api/history/tokens?range=current_day`, and `POST /api/archive/capture` all succeeded.
-- Registered the app as user-level systemd units on 2026-03-27 via `./scripts/install_user_service.sh`: `clawobserver.service` is active/running, `clawobserver-capture.timer` is active/waiting, and a manual `systemctl --user start clawobserver-capture.service` completed successfully.
-- Added the operator-facing deployment entrypoint `./scripts/deploy.sh` on 2026-03-27 and kept `./scripts/install_user_service.sh` as a compatibility wrapper. The repo now documents the script-first deployment flow, default loopback bind, runtime adapter precedence, and archive cadence semantics.
-- Repo-local validation for the public-release edits remained non-destructive: shell syntax checks, unit tests, doc review, and a rerun of `./scripts/deploy.sh` all passed before publication.
-- Verified the next feature pass locally on 2026-03-27: `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver scripts/openclaw_runtime_adapter.py`, `node --check clawobserver/static/app.js`, and a temp-dir smoke test using `CLAWOBSERVER_RUNTIME_COMMAND="python3 scripts/openclaw_runtime_adapter.py"` all passed. The smoke test confirmed `gateways.exits_today` appears in both `/api/live/overview` and archive-backed history payloads.
-- Published publicly on 2026-03-27 at `https://github.com/hailangge/ClawObserver`; the repository now includes an MIT license and a `v0.1.0` GitHub release tag.
-- Historical scope must remain grounded in the audited 2026-03-27 dashboard families, not obsolete `openclaw_agent_*` summary notes.
-- Live runtime state and archive-backed history must remain separate paths.
-- Gateway reliability history remains conservative: `exits_today` is archived as a count snapshot, and the bundled adapter uses structured runtime data when available or a documented `systemd` journal exit-event heuristic otherwise.
-- After restarting the user service and triggering a fresh archive capture on 2026-03-27, `exits_today` was observed in realtime payloads immediately and in the latest historical archive point once a new snapshot had been captured.
-- Queue semantics were recalibrated again on 2026-03-27 against the real OpenClaw delivery queue on disk. The validated truthful model is `delivery_queue_pending` from `~/.openclaw/delivery-queue/*.json` plus `delivery_queue_failed` from `~/.openclaw/delivery-queue/failed/*.json`. The inspected file contents exposed message metadata such as `channel`, `retryCount`, and `lastError`, but they did not expose trustworthy internal queue lanes beyond pending versus failed.
-- Verified the recalibration locally on 2026-03-27 by inspecting the real host queue directories and sample queue files, then running `python3 -m unittest discover -s tests -v`, `python3 -m compileall clawobserver scripts/openclaw_runtime_adapter.py`, `node --check clawobserver/static/app.js`, and `python3 scripts/openclaw_runtime_adapter.py`. The adapter now emits delivery-queue pending/failed counts from disk when available and those values flow through live and archived history payloads unchanged.
-- Session-type comparison is archived via conservative Persistent vs One-Shot classification from stable OpenClaw session-key conventions because the current public session rows did not publish a first-class mode field for all sessions during the 2026-03-27 investigation.
-- Token cache-hit ratio is now included when archived `cacheRead` / `cacheWrite` counters are present; if a runtime source omits those counters, the UI surfaces the ratio as unavailable rather than zero.
-- Current-day token rollups now ignore sessions whose latest known update timestamp is not from the selected day, which keeps stale legacy models like `gpt-5.3-codex` from polluting today’s approximate token view.
-- Repaired token statistics on 2026-03-28 so cross-day ranges select the latest archived rows by `day_key`, not `capture_date` or per-field maxima. This preserves full daily totals when a day’s final token record is captured just after midnight and prevents mixed-snapshot token totals.
-- Added compact token rendering on 2026-03-28 so token cards, token tables, token bar lists, token chart axes, and token tooltips use `K` formatting for large values.
-- Added visible page-body loading states on 2026-03-28 for Realtime, Historical, and Token Stats page/range transitions so the UI shows `Loading...` until the next payload finishes rendering.
-- Verified the token-statistics repair pass locally on 2026-03-28 with pinned archive-date unit tests plus `node --check` on the frontend bundle before the full validation pass.
-- Owner correction applied on 2026-05-06: the central Realtime visualization area must remain and be restyled, not removed. The rebuilt scene now preserves that middle canvas as the main 3D-like deep-tech office visualization.
-- The restored Realtime scene uses `clawobserver/static/scene-role-styles.json` for configurable role/agent presentation and shows hanging nameplates with agent name plus current task-count proxy (`active_sessions`).
-- Optional hover session details remain explicit: the scene tooltip shows role plus deferred placeholder text for `ThinkingLevel` and latest user input when the runtime source does not expose those fields yet.
-- Verified the corrected Realtime scene on 2026-05-06 with `node --check clawobserver/static/app.js`, `python3 -m unittest tests.test_runtime tests.test_archive -v`, live HTTP fetches against the local server, and a real headless Chrome screenshot render of `http://127.0.0.1:8420` saved as `clawobserver-realtime-scene.png`.
-- Owner follow-up at 2026-05-06 14:39 requires an even stricter image-matched rebuild against `docs/reference-ui-viz.jpg`: use the reference as the single source of truth, preserve hanging-tag positions, keep the blue deep-tech office feel, and validate with both syntax/build checks and a real browser smoke test before committing.
-- Reference-scene rebuild updated on 2026-05-06: the Realtime scene now uses `clawobserver/static/assets/reference-scene-base.jpg` as the office/workspace base layer and keeps fixed hotspot/tag anchors aligned to the owner reference image while injecting live agent name and current parallel-task proxy text.
-- Tooltip behavior remains implemented through `data-scene-tooltip` hooks on both the fixed character hotspots and the hanging tags, with deferred placeholders still shown when runtime fields like `ThinkingLevel` or latest user input are absent.
-- Final reference-scene validation completed on 2026-05-06 with `node --check clawobserver/static/app.js`, `python3 -m compileall clawobserver`, `python3 -m unittest tests.test_runtime tests.test_archive -v`, `curl http://127.0.0.1:8420/api/health`, `python3` live-overview fetch verification against `http://127.0.0.1:8420/api/live/overview`, and a headless Chrome smoke render saved to `/tmp/clawobserver-reference-scene-smoke-4.png`.
-- Owner adjustment follow-up on 2026-05-06: the richer tooltip/runtime tests now expect `latest_user_input_timestamp` to follow the repo's existing local-ISO normalization behavior via the adapter timestamp helper instead of preserving the raw `+00:00` input string.
+- Phase A historical restoration finding on 2026-05-08: archive history, SQLite schema, archive reads, and the user `systemd` timer/service chain remained healthy. The database still accumulated snapshots every 30 minutes and prior days retained non-empty totals, so the historical path did not need schema/timer repair.
+- Phase B real-data connection finding on 2026-05-08: the break was in the live runtime adapter source chain. `scripts/openclaw_runtime_adapter.py` began with `openclaw sessions --all-agents --json`, which hangs on the current host, and gateway status calls can also hang/fail. That combination exhausted the outer runtime-command timeout and replaced real OpenClaw local session-store data with empty waiting payloads, which then propagated unchanged through `/api/live/overview`, `clawobserver capture`, and today's archive rows.
+- Phase B repair on 2026-05-08: the adapter now treats `~/.openclaw/agents/*/sessions/sessions.json` as the primary real source for all-agent sessions, token counters, and agent metadata; bounded CLI calls are now optional best-effort enrichments instead of the gate for all live data. Gateway failures now produce truthful degraded status/reasons without erasing real session totals or delivery-queue depth.
+- Deployment/timer finding on 2026-05-08: the installed user units and env file already pointed both web and capture services at the repo runtime adapter and the correct SQLite path. No `systemd` unit or env-file changes were required for the fix.
+- Current focused session starts from the live repository state and ignores prior failed reasoning tracks.
+- Do not expand into unrelated UI redesign.
+- Additional verification on 2026-05-08 found two remaining backend escape hatches after the earlier `sessions: null` fix: a non-object top-level runtime payload (for example a JSON list) raised `AttributeError` in `LiveRuntimeAdapter._normalize_payload()`, and an invalid `captured_at` raised `ValueError` in `_parse_timestamp()`. Both now degrade to HTTP 200 `capture_status: "waiting"` live payloads instead of falling through to the server's controlled 503 error wrapper.
+- Additional real-instance verification on 2026-05-08 found the still-live 8420 failure was not another payload-shape crash. `/api/live/overview` returned HTTP 200 waiting JSON, but only after about 5.05s because `clawobserver/runtime.py` allowed the configured runtime command to run for 5s while the browser aborts live fetches after 4s. The repair is to keep the backend fail-soft budget under that 4s client deadline.
+- Additional real-instance verification on 2026-05-08 confirmed the true current root cause after the timeout-contract fix: `/usr/bin/env python3 /mnt/data/repositories/ClawObserver/scripts/openclaw_runtime_adapter.py` still depended on `openclaw sessions --all-agents --json`, which timed out and forced the adapter to emit a generic zero-session waiting payload even though local OpenClaw session stores remained readable and non-empty.
+- Phase A historical baseline is still the non-empty demo/runtime payload from `build_demo_payload()` in `clawobserver/runtime.py` across `v0.1.0`, `v0.2.0`, `v0.2.1`, and `8b5bab9`, which populated session overview totals, per-agent counts, session states, session types, queues, gateways, and token rows.
+- Phase B validation on 2026-05-08 after the repair:
+  `python3 scripts/openclaw_runtime_adapter.py` returned `capture_status: "waiting"` but with `sessions.total = 91`, `sessions.active = 3`, per-agent rows including `main`, `media-manager`, and `se-codex`, plus truthful queue rows from `~/.openclaw/delivery-queue`.
+  `CLAWOBSERVER_RUNTIME_COMMAND='/usr/bin/env python3 /mnt/data/repositories/ClawObserver/scripts/openclaw_runtime_adapter.py' python3 - <<'PY' ... app.live_overview_payload() ... PY` returned `source_version: "openclaw-cli-runtime"`, `total_sessions = 91`, `active_sessions = 3`, `agent_count = 10`, non-empty `queue_lanes`, and degraded-but-honest gateway counts instead of the prior empty shell.
