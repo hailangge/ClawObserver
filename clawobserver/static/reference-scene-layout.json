@@ -1,0 +1,72 @@
+{
+  "imageSize": {
+    "width": 1200,
+    "height": 896
+  },
+  "background": {
+    "src": "/assets/assets/reference-scene-base.jpg",
+    "alt": ""
+  },
+  "workstations": [
+    {
+      "row": 0,
+      "tag": { "x": 41, "y": 89, "width": 151, "height": 60 },
+      "character": { "x": 75, "y": 195, "width": 138, "height": 165 }
+    },
+    {
+      "row": 0,
+      "tag": { "x": 220, "y": 89, "width": 159, "height": 60 },
+      "character": { "x": 261, "y": 195, "width": 126, "height": 165 }
+    },
+    {
+      "row": 0,
+      "tag": { "x": 399, "y": 89, "width": 166, "height": 60 },
+      "character": { "x": 443, "y": 192, "width": 129, "height": 165 }
+    },
+    {
+      "row": 0,
+      "tag": { "x": 582, "y": 89, "width": 161, "height": 60 },
+      "character": { "x": 628, "y": 198, "width": 128, "height": 165 }
+    },
+    {
+      "row": 0,
+      "tag": { "x": 765, "y": 89, "width": 163, "height": 60 },
+      "character": { "x": 810, "y": 197, "width": 126, "height": 165 }
+    },
+    {
+      "row": 1,
+      "tag": { "x": 29, "y": 386, "width": 180, "height": 60 },
+      "character": { "x": 55, "y": 492, "width": 137, "height": 175 }
+    },
+    {
+      "row": 1,
+      "tag": { "x": 216, "y": 386, "width": 164, "height": 60 },
+      "character": { "x": 246, "y": 492, "width": 135, "height": 175 }
+    },
+    {
+      "row": 1,
+      "tag": { "x": 398, "y": 386, "width": 163, "height": 60 },
+      "character": { "x": 447, "y": 492, "width": 134, "height": 175 }
+    },
+    {
+      "row": 1,
+      "tag": { "x": 581, "y": 386, "width": 161, "height": 60 },
+      "character": { "x": 644, "y": 487, "width": 133, "height": 175 }
+    },
+    {
+      "row": 1,
+      "tag": { "x": 763, "y": 386, "width": 162, "height": 60 },
+      "character": { "x": 842, "y": 490, "width": 136, "height": 175 }
+    }
+  ],
+  "lounge": {
+    "area": { "x": 185, "y": 678, "width": 767, "height": 218 },
+    "slots": [
+      { "character": { "x": 185, "y": 678, "width": 158, "height": 218 } },
+      { "character": { "x": 343, "y": 700, "width": 152, "height": 196 } },
+      { "character": { "x": 495, "y": 700, "width": 150, "height": 196 } },
+      { "character": { "x": 645, "y": 700, "width": 152, "height": 196 } },
+      { "character": { "x": 797, "y": 700, "width": 155, "height": 196 } }
+    ]
+  }
+}

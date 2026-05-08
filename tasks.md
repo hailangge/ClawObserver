@@ -2,6 +2,7 @@
 
 ## In progress
 
+- [x] Fix Realtime scene config/state alignment so hanging tags use measured reference-scene geometry and idle agents render only in lounge while their workstation anchors remain unassigned (`clawobserver/static/reference-scene-layout.json`, `clawobserver/static/app.js`, `tests/test_realtime_scene_logic.py`)
 - [x] Restore the real OpenClaw data chain so Realtime and archive capture stop writing empty/waiting-only snapshots when bounded local session stores are available (`scripts/openclaw_runtime_adapter.py`, `clawobserver/runtime.py`, `clawobserver/app.py`).
 - [x] Prove the true chain split: frontend, archive schema, timer, and SQLite insertion were healthy; the empty-today failure came from the runtime adapter's hanging all-agents/gateway collection path zeroing the upstream snapshot before archive capture (`tasks.md`, live validation).
 - [x] Reconnect Phase A historical restoration and Phase B live OpenClaw data collection with regression tests covering local-store-primary sessions plus degraded gateway/all-agents failures (`tests/test_openclaw_runtime_adapter.py`, `tests/test_runtime.py`, `tests/test_server.py`, `tests/test_archive.py`).

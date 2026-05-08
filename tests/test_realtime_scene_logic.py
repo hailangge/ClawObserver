@@ -6,18 +6,23 @@ import textwrap
 import unittest
 from pathlib import Path
 
+APP_JS_PATH = Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"
+LAYOUT_JSON_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "clawobserver"
+    / "static"
+    / "reference-scene-layout.json"
+)
+
 
 class RealtimeSceneLogicTests(unittest.TestCase):
     def test_idle_lounge_order_follows_canonical_desk_assignments(self) -> None:
-        app_js_path = (
-            Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"
-        )
         script = textwrap.dedent(
             f"""
             const fs = require("fs");
             const vm = require("vm");
 
-            const source = fs.readFileSync({json.dumps(str(app_js_path))}, "utf8");
+            const source = fs.readFileSync({json.dumps(str(APP_JS_PATH))}, "utf8");
             const context = {{
               console,
               setTimeout: () => 0,
@@ -71,25 +76,100 @@ class RealtimeSceneLogicTests(unittest.TestCase):
             payload["officeStates"],
             [
                 {"name": "planner", "sceneState": "active", "taskCount": 2, "statusLabel": "Working"},
-                {"name": "researcher", "sceneState": "idle", "taskCount": 0, "statusLabel": "Idle / resting"},
+                {"name": None, "sceneState": "unassigned", "taskCount": 0, "statusLabel": "Unassigned desk"},
                 {"name": "operator", "sceneState": "active", "taskCount": 1, "statusLabel": "Working"},
-                {"name": "reviewer", "sceneState": "idle", "taskCount": 0, "statusLabel": "Idle / resting"},
+                {"name": None, "sceneState": "unassigned", "taskCount": 0, "statusLabel": "Unassigned desk"},
             ],
         )
         self.assertEqual(payload["idleLoungeAgents"], ["researcher", "reviewer"])
         self.assertEqual(payload["activeWorkerCount"], 2)
         self.assertEqual(payload["restingWorkerCount"], 2)
 
-    def test_rendered_desk_slots_keep_row_baselines_and_idle_vacancy_state(self) -> None:
-        app_js_path = (
-            Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"
-        )
+    def test_scene_layout_config_matches_asset_analysis_boxes(self) -> None:
+        expected_tags = [
+            {"left": 3.4167, "top": 9.933, "width": 12.5833, "height": 6.6964},
+            {"left": 18.3333, "top": 9.933, "width": 13.25, "height": 6.6964},
+            {"left": 33.25, "top": 9.933, "width": 13.8333, "height": 6.6964},
+            {"left": 48.5, "top": 9.933, "width": 13.4167, "height": 6.6964},
+            {"left": 63.75, "top": 9.933, "width": 13.5833, "height": 6.6964},
+            {"left": 2.4167, "top": 43.0804, "width": 15.0, "height": 6.6964},
+            {"left": 18.0, "top": 43.0804, "width": 13.6667, "height": 6.6964},
+            {"left": 33.1667, "top": 43.0804, "width": 13.5833, "height": 6.6964},
+            {"left": 48.4167, "top": 43.0804, "width": 13.4167, "height": 6.6964},
+            {"left": 63.5833, "top": 43.0804, "width": 13.5, "height": 6.6964},
+        ]
+        expected_desks = [
+            {"left": 6.25, "top": 21.7634, "width": 11.5, "height": 18.4152},
+            {"left": 21.75, "top": 21.7634, "width": 10.5, "height": 18.4152},
+            {"left": 36.9167, "top": 21.4286, "width": 10.75, "height": 18.4152},
+            {"left": 52.3333, "top": 22.0982, "width": 10.6667, "height": 18.4152},
+            {"left": 67.5, "top": 21.9866, "width": 10.5, "height": 18.4152},
+            {"left": 4.5833, "top": 54.9107, "width": 11.4167, "height": 19.5313},
+            {"left": 20.5, "top": 54.9107, "width": 11.25, "height": 19.5313},
+            {"left": 37.25, "top": 54.9107, "width": 11.1667, "height": 19.5313},
+            {"left": 53.6667, "top": 54.3527, "width": 11.0833, "height": 19.5313},
+            {"left": 70.1667, "top": 54.6875, "width": 11.3333, "height": 19.5313},
+        ]
         script = textwrap.dedent(
             f"""
             const fs = require("fs");
             const vm = require("vm");
 
-            const source = fs.readFileSync({json.dumps(str(app_js_path))}, "utf8");
+            const source = fs.readFileSync({json.dumps(str(APP_JS_PATH))}, "utf8");
+            const layoutPayload = JSON.parse(fs.readFileSync({json.dumps(str(LAYOUT_JSON_PATH))}, "utf8"));
+            const context = {{
+              console,
+              setTimeout: () => 0,
+              clearTimeout: () => {{}},
+              fetch: async () => ({{ ok: true, json: async () => ({{}}) }}),
+              window: {{}},
+              document: {{
+                addEventListener: () => {{}},
+                querySelectorAll: () => [],
+                querySelector: () => null,
+                getElementById: () => ({{ setAttribute: () => {{}}, innerHTML: "", getBoundingClientRect: () => ({{ left: 0, top: 0, width: 0, height: 0 }}) }}),
+                createElement: () => ({{ className: "", hidden: true, appendChild: () => {{}} }}),
+              }},
+            }};
+            context.global = context;
+            vm.createContext(context);
+            vm.runInContext(source, context);
+            const normalized = context.normalizeReferenceSceneLayout(layoutPayload);
+            console.log(JSON.stringify({{
+              tags: normalized.activeSlots.map((slot) => slot.tag),
+              desks: normalized.activeSlots.map((slot) => slot.character),
+              loungeArea: normalized.loungeArea,
+              loungeSlots: normalized.idleSlots.map((slot) => slot.character),
+            }}));
+            """
+        )
+        output = subprocess.check_output(["node", "-e", script], text=True)
+        payload = json.loads(output)
+
+        self.assertEqual(payload["tags"], expected_tags)
+        self.assertEqual(payload["desks"], expected_desks)
+        self.assertEqual(
+            payload["loungeArea"],
+            {"left": 15.4167, "top": 75.6696, "width": 63.9167, "height": 24.3304},
+        )
+        self.assertEqual(
+            payload["loungeSlots"],
+            [
+                {"left": 15.4167, "top": 75.6696, "width": 13.1667, "height": 24.3304},
+                {"left": 28.5833, "top": 78.125, "width": 12.6667, "height": 21.875},
+                {"left": 41.25, "top": 78.125, "width": 12.5, "height": 21.875},
+                {"left": 53.75, "top": 78.125, "width": 12.6667, "height": 21.875},
+                {"left": 66.4167, "top": 78.125, "width": 12.9167, "height": 21.875},
+            ],
+        )
+
+    def test_rendered_desk_slots_use_configured_plate_boxes_and_idle_desks_stay_empty(self) -> None:
+        script = textwrap.dedent(
+            f"""
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync({json.dumps(str(APP_JS_PATH))}, "utf8");
             const context = {{
               console,
               setTimeout: () => 0,
@@ -137,6 +217,7 @@ class RealtimeSceneLogicTests(unittest.TestCase):
               const sceneStatusLabelMatch = html.match(/data-scene-status-label="([^"]+)"/);
               const sceneAgentNameMatch = html.match(/data-scene-agent-name="([^"]*)"/);
               const sceneTaskCountMatch = html.match(/data-scene-task-count="([^"]+)"/);
+              const tagStyleMatch = html.match(/class="scene-reference-tag[^"]*"\\s+style="([^"]+)"/);
               return {{
                 name: agent.name,
                 sceneState: agent.sceneState,
@@ -146,6 +227,7 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 taskCountAttr: sceneTaskCountMatch ? sceneTaskCountMatch[1] : null,
                 row: referenceSceneLayout.activeSlots[index].row + 1,
                 baselineTop: baselineMatch ? baselineMatch[1] : null,
+                tagStyle: tagStyleMatch ? tagStyleMatch[1] : null,
                 tagText: tagTextMatch ? tagTextMatch[1] : null,
                 hasActiveResource: html.includes("scene-workstation-resource-active"),
                 hasVacancy: html.includes("scene-reference-vacancy"),
@@ -171,7 +253,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "planner",
                     "taskCountAttr": "2",
                     "row": 1,
-                    "baselineTop": "10.3",
+                    "baselineTop": "9.933",
+                    "tagStyle": "top:9.933%;left:3.4167%;width:12.5833%;height:6.6964%;",
                     "tagText": "planner (2)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -179,19 +262,20 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "tooltipStatus": "Working",
                 },
                 {
-                    "name": "researcher",
-                    "sceneState": "idle",
-                    "renderedState": "idle",
-                    "statusLabel": "Idle / resting",
-                    "agentNameAttr": "researcher",
+                    "name": None,
+                    "sceneState": "unassigned",
+                    "renderedState": "unassigned",
+                    "statusLabel": "Unassigned desk",
+                    "agentNameAttr": "",
                     "taskCountAttr": "0",
                     "row": 1,
-                    "baselineTop": "10.3",
-                    "tagText": "researcher (0)",
+                    "baselineTop": "9.933",
+                    "tagStyle": "top:9.933%;left:18.3333%;width:13.25%;height:6.6964%;",
+                    "tagText": "Unassigned (0)",
                     "hasActiveResource": False,
                     "hasVacancy": True,
-                    "taskDetails": "0 active tasks. Idle agent is resting in the lounge; workstation remains empty. Latest known task context before idle: Summarize hover mismatch evidence.",
-                    "tooltipStatus": "Idle / resting",
+                    "taskDetails": "No tracked agent is currently assigned to this workstation anchor.",
+                    "tooltipStatus": "Unassigned desk",
                 },
                 {
                     "name": "operator",
@@ -201,7 +285,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "operator",
                     "taskCountAttr": "1",
                     "row": 1,
-                    "baselineTop": "10.3",
+                    "baselineTop": "9.933",
+                    "tagStyle": "top:9.933%;left:33.25%;width:13.8333%;height:6.6964%;",
                     "tagText": "operator (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -209,19 +294,20 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "tooltipStatus": "Working",
                 },
                 {
-                    "name": "reviewer",
-                    "sceneState": "idle",
-                    "renderedState": "idle",
-                    "statusLabel": "Idle / resting",
-                    "agentNameAttr": "reviewer",
+                    "name": None,
+                    "sceneState": "unassigned",
+                    "renderedState": "unassigned",
+                    "statusLabel": "Unassigned desk",
+                    "agentNameAttr": "",
                     "taskCountAttr": "0",
                     "row": 1,
-                    "baselineTop": "10.3",
-                    "tagText": "reviewer (0)",
+                    "baselineTop": "9.933",
+                    "tagStyle": "top:9.933%;left:48.5%;width:13.4167%;height:6.6964%;",
+                    "tagText": "Unassigned (0)",
                     "hasActiveResource": False,
                     "hasVacancy": True,
-                    "taskDetails": "0 active tasks. Idle agent is resting in the lounge; workstation remains empty. Latest known task context before idle: Confirm tag alignment.",
-                    "tooltipStatus": "Idle / resting",
+                    "taskDetails": "No tracked agent is currently assigned to this workstation anchor.",
+                    "tooltipStatus": "Unassigned desk",
                 },
                 {
                     "name": "alpha",
@@ -231,7 +317,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "alpha",
                     "taskCountAttr": "1",
                     "row": 1,
-                    "baselineTop": "10.3",
+                    "baselineTop": "9.933",
+                    "tagStyle": "top:9.933%;left:63.75%;width:13.5833%;height:6.6964%;",
                     "tagText": "alpha (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -246,7 +333,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "beta",
                     "taskCountAttr": "1",
                     "row": 2,
-                    "baselineTop": "38.8",
+                    "baselineTop": "43.0804",
+                    "tagStyle": "top:43.0804%;left:2.4167%;width:15%;height:6.6964%;",
                     "tagText": "beta (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -261,7 +349,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "delta",
                     "taskCountAttr": "1",
                     "row": 2,
-                    "baselineTop": "38.8",
+                    "baselineTop": "43.0804",
+                    "tagStyle": "top:43.0804%;left:18%;width:13.6667%;height:6.6964%;",
                     "tagText": "delta (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -272,15 +361,12 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         )
 
     def test_unassigned_desk_slots_expose_unassigned_status_metadata(self) -> None:
-        app_js_path = (
-            Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"
-        )
         script = textwrap.dedent(
             f"""
             const fs = require("fs");
             const vm = require("vm");
 
-            const source = fs.readFileSync({json.dumps(str(app_js_path))}, "utf8");
+            const source = fs.readFileSync({json.dumps(str(APP_JS_PATH))}, "utf8");
             const context = {{
               console,
               setTimeout: () => 0,
@@ -329,6 +415,7 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 name: agent.name,
                 sceneState: agent.sceneState,
               }})),
+              idleLoungeAgents: model.idleLoungeAgents.map((agent) => agent.name),
               restingWorkerCount: model.restingWorkerCount,
               activeWorkerCount: model.activeWorkerCount,
               renderedState: sceneStateMatch ? sceneStateMatch[1] : null,
@@ -351,16 +438,17 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 {"name": "planner", "sceneState": "active"},
                 {"name": None, "sceneState": "unassigned"},
                 {"name": None, "sceneState": "unassigned"},
-                {"name": "reviewer", "sceneState": "idle"},
+                {"name": None, "sceneState": "unassigned"},
             ],
         )
+        self.assertEqual(payload["idleLoungeAgents"], ["reviewer"])
         self.assertEqual(payload["restingWorkerCount"], 1)
         self.assertEqual(payload["activeWorkerCount"], 1)
         self.assertEqual(payload["renderedState"], "unassigned")
         self.assertEqual(payload["statusLabel"], "Unassigned desk")
         self.assertEqual(payload["agentNameAttr"], "")
         self.assertEqual(payload["taskCountAttr"], "0")
-        self.assertEqual(payload["baselineTop"], "10.3")
+        self.assertEqual(payload["baselineTop"], "9.933")
         self.assertEqual(payload["tagText"], "Unassigned (0)")
         self.assertEqual(payload["tooltipStatus"], "Unassigned desk")
         self.assertEqual(
@@ -369,15 +457,12 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         )
 
     def test_waiting_scene_unassigned_desks_render_placeholder_hanging_tags(self) -> None:
-        app_js_path = (
-            Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"
-        )
         script = textwrap.dedent(
             f"""
             const fs = require("fs");
             const vm = require("vm");
 
-            const source = fs.readFileSync({json.dumps(str(app_js_path))}, "utf8");
+            const source = fs.readFileSync({json.dumps(str(APP_JS_PATH))}, "utf8");
             const context = {{
               console,
               setTimeout: () => 0,
@@ -445,6 +530,80 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         self.assertEqual(payload["taskCountAttr"], "0")
         self.assertTrue(payload["hasTagClass"])
         self.assertTrue(payload["hasTooltip"])
+
+    def test_idle_agents_render_only_in_lounge_not_at_workstations(self) -> None:
+        script = textwrap.dedent(
+            f"""
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync({json.dumps(str(APP_JS_PATH))}, "utf8");
+            const layoutPayload = JSON.parse(fs.readFileSync({json.dumps(str(LAYOUT_JSON_PATH))}, "utf8"));
+            const context = {{
+              console,
+              setTimeout: () => 0,
+              clearTimeout: () => {{}},
+              fetch: async () => ({{ ok: true, json: async () => ({{}}) }}),
+              window: {{}},
+              document: {{
+                addEventListener: () => {{}},
+                querySelectorAll: () => [],
+                querySelector: () => null,
+                getElementById: () => ({{ setAttribute: () => {{}}, innerHTML: "", getBoundingClientRect: () => ({{ left: 0, top: 0, width: 0, height: 0 }}) }}),
+                createElement: () => ({{ className: "", hidden: true, appendChild: () => {{}} }}),
+              }},
+            }};
+            context.global = context;
+            vm.createContext(context);
+            vm.runInContext(source, context);
+            vm.runInContext("referenceSceneLayout = normalizeReferenceSceneLayout(" + JSON.stringify(layoutPayload) + ")", context);
+
+            const payload = {{
+              capture_status: "ok",
+              queue_lanes: [],
+              gateways: [],
+              agent_sessions: [
+                {{ agent_name: "planner", active_sessions: 2, total_sessions: 3, role_style_key: "planner", task_details: ["Plan release validation"] }},
+                {{ agent_name: "researcher", active_sessions: 0, total_sessions: 1, role_style_key: "researcher", task_details: ["Summarize hover mismatch evidence"] }},
+                {{ agent_name: "operator", active_sessions: 1, total_sessions: 2, role_style_key: "operator", task_details: ["Monitor gateway path"] }},
+                {{ agent_name: "reviewer", active_sessions: 0, total_sessions: 9, role_style_key: "reviewer", task_details: ["Confirm tag alignment"] }},
+              ],
+            }};
+            const sceneRoleStyles = context.normalizeSceneRoleStyles(context.defaultSceneRoleStyles);
+            const model = context.buildRealtimeSceneModel(payload, sceneRoleStyles);
+            const html = context.renderRealtimeScene(model);
+            console.log(JSON.stringify({{
+              officeAgents: model.officeAgents.slice(0, 4).map((agent) => ({{
+                name: agent.name,
+                sceneState: agent.sceneState,
+              }})),
+              idleLoungeAgents: model.idleLoungeAgents.map((agent) => agent.name),
+              loungeAgentNames: Array.from(html.matchAll(/data-scene-zone="lounge"[^>]*data-scene-agent-name="([^"]+)"/g)).map((match) => match[1]),
+              workstationAgentNames: Array.from(html.matchAll(/data-scene-zone="workstation"[^>]*aria-label="([^"]+)"/g)).map((match) => match[1]),
+              htmlContainsIdleLoungeLabels: html.includes("idle lounge seat 1") && html.includes("idle lounge seat 2"),
+            }}));
+            """
+        )
+        output = subprocess.check_output(["node", "-e", script], text=True)
+        payload = json.loads(output)
+
+        self.assertEqual(
+            payload["officeAgents"],
+            [
+                {"name": "planner", "sceneState": "active"},
+                {"name": None, "sceneState": "unassigned"},
+                {"name": "operator", "sceneState": "active"},
+                {"name": None, "sceneState": "unassigned"},
+            ],
+        )
+        self.assertEqual(payload["idleLoungeAgents"], ["researcher", "reviewer"])
+        self.assertEqual(payload["loungeAgentNames"], ["researcher", "reviewer"])
+        self.assertEqual(
+            payload["workstationAgentNames"],
+            ["planner, Working, 2 tasks, workstation 1", "operator, Working, 1 task, workstation 3"],
+        )
+        self.assertTrue(all("Idle / resting" not in label for label in payload["workstationAgentNames"]))
+        self.assertTrue(payload["htmlContainsIdleLoungeLabels"])
 
 
     def test_realtime_initial_refresh_retries_then_renders_success(self) -> None:

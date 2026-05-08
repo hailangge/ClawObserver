@@ -6,6 +6,7 @@ const state = {
   activeRequest: null,
   lastRealtimeSnapshot: null,
   sceneRoleStyles: null,
+  sceneLayout: null,
   sceneDeskAssignments: {},
 };
 
@@ -49,33 +50,33 @@ const defaultSceneRoleStyles = {
   },
 };
 
-const referenceSceneLayout = {
-  deskRows: [
-    { tagTop: 10.3, characterTop: 14.2 },
-    { tagTop: 38.8, characterTop: 43.2 },
+const defaultReferenceSceneLayoutConfig = {
+  imageSize: { width: 1200, height: 896 },
+  background: { src: "/assets/assets/reference-scene-base.jpg", alt: "" },
+  workstations: [
+    { row: 0, tag: { x: 41, y: 89, width: 151, height: 60 }, character: { x: 75, y: 195, width: 138, height: 165 } },
+    { row: 0, tag: { x: 220, y: 89, width: 159, height: 60 }, character: { x: 261, y: 195, width: 126, height: 165 } },
+    { row: 0, tag: { x: 399, y: 89, width: 166, height: 60 }, character: { x: 443, y: 192, width: 129, height: 165 } },
+    { row: 0, tag: { x: 582, y: 89, width: 161, height: 60 }, character: { x: 628, y: 198, width: 128, height: 165 } },
+    { row: 0, tag: { x: 765, y: 89, width: 163, height: 60 }, character: { x: 810, y: 197, width: 126, height: 165 } },
+    { row: 1, tag: { x: 29, y: 386, width: 180, height: 60 }, character: { x: 55, y: 492, width: 137, height: 175 } },
+    { row: 1, tag: { x: 216, y: 386, width: 164, height: 60 }, character: { x: 246, y: 492, width: 135, height: 175 } },
+    { row: 1, tag: { x: 398, y: 386, width: 163, height: 60 }, character: { x: 447, y: 492, width: 134, height: 175 } },
+    { row: 1, tag: { x: 581, y: 386, width: 161, height: 60 }, character: { x: 644, y: 487, width: 133, height: 175 } },
+    { row: 1, tag: { x: 763, y: 386, width: 162, height: 60 }, character: { x: 842, y: 490, width: 136, height: 175 } },
   ],
-  activeSlots: [
-    { row: 0, character: { left: 4.5, width: 15.2, height: 27.8 }, tag: { left: 4.5, width: 15.2, height: 5.2 } },
-    { row: 0, character: { left: 22.4, width: 15.2, height: 28.0 }, tag: { left: 22.4, width: 15.2, height: 5.2 } },
-    { row: 0, character: { left: 40.8, width: 15.0, height: 28.0 }, tag: { left: 40.8, width: 15.0, height: 5.2 } },
-    { row: 0, character: { left: 59.0, width: 15.2, height: 28.0 }, tag: { left: 59.0, width: 15.2, height: 5.2 } },
-    { row: 0, character: { left: 77.0, width: 15.4, height: 28.0 }, tag: { left: 77.0, width: 15.4, height: 5.2 } },
-    { row: 1, character: { left: 4.8, width: 15.2, height: 28.2 }, tag: { left: 4.8, width: 15.2, height: 5.4 } },
-    { row: 1, character: { left: 22.4, width: 15.2, height: 28.0 }, tag: { left: 22.4, width: 15.2, height: 5.4 } },
-    { row: 1, character: { left: 40.9, width: 15.0, height: 27.8 }, tag: { left: 40.9, width: 15.0, height: 5.4 } },
-    { row: 1, character: { left: 59.2, width: 15.2, height: 28.2 }, tag: { left: 59.2, width: 15.2, height: 5.4 } },
-    { row: 1, character: { left: 77.0, width: 15.2, height: 28.0 }, tag: { left: 77.0, width: 15.2, height: 5.4 } },
-  ],
-  loungeArea: { top: 72.6, left: 18.0, width: 58.0, height: 18.2 },
-  idleSlots: [
-    { character: { top: 74.0, left: 19.2, width: 8.6, height: 16.2 } },
-    { character: { top: 74.0, left: 28.9, width: 8.6, height: 16.2 } },
-    { character: { top: 74.0, left: 38.6, width: 8.6, height: 16.2 } },
-    { character: { top: 74.0, left: 48.3, width: 8.6, height: 16.2 } },
-    { character: { top: 74.0, left: 58.0, width: 8.6, height: 16.2 } },
-    { character: { top: 74.0, left: 67.7, width: 8.6, height: 16.2 } },
-  ],
+  lounge: {
+    area: { x: 185, y: 678, width: 767, height: 218 },
+    slots: [
+      { character: { x: 185, y: 678, width: 158, height: 218 } },
+      { character: { x: 343, y: 700, width: 152, height: 196 } },
+      { character: { x: 495, y: 700, width: 150, height: 196 } },
+      { character: { x: 645, y: 700, width: 152, height: 196 } },
+      { character: { x: 797, y: 700, width: 155, height: 196 } },
+    ],
+  },
 };
+let referenceSceneLayout = normalizeReferenceSceneLayout(defaultReferenceSceneLayoutConfig);
 
 document.addEventListener("DOMContentLoaded", () => {
   bindNavigation();
@@ -269,6 +270,7 @@ function scheduleLiveRefresh(refreshSeconds = DEFAULT_LIVE_REFRESH_SECONDS, show
 
 async function loadRealtimeViewModel(requestContext, showLoading) {
   const sceneRoleStylesPromise = loadSceneRoleStyles({ signal: requestContext.controller.signal });
+  const sceneLayoutPromise = loadSceneLayout({ signal: requestContext.controller.signal });
   let lastError = null;
 
   for (let attempt = 0; attempt <= LIVE_RETRY_DELAYS_MS.length; attempt += 1) {
@@ -276,6 +278,7 @@ async function loadRealtimeViewModel(requestContext, showLoading) {
       const [rawPayload, sceneRoleStyles] = await Promise.all([
         fetchJson("/api/live/overview", { signal: requestContext.controller.signal }),
         sceneRoleStylesPromise,
+        sceneLayoutPromise,
       ]);
       return {
         payload: normalizeLiveOverviewPayload(rawPayload),
@@ -731,6 +734,28 @@ async function loadSceneRoleStyles(options = {}) {
   return state.sceneRoleStyles;
 }
 
+async function loadSceneLayout(options = {}) {
+  if (state.sceneLayout) {
+    referenceSceneLayout = state.sceneLayout;
+    return state.sceneLayout;
+  }
+  try {
+    const payload = await fetchJson("/assets/reference-scene-layout.json", {
+      signal: options.signal,
+    });
+    state.sceneLayout = normalizeReferenceSceneLayout(payload);
+    referenceSceneLayout = state.sceneLayout;
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    console.warn("Failed to load scene layout; using defaults.", error);
+    state.sceneLayout = normalizeReferenceSceneLayout(defaultReferenceSceneLayoutConfig);
+    referenceSceneLayout = state.sceneLayout;
+  }
+  return state.sceneLayout;
+}
+
 function normalizeSceneRoleStyles(payload) {
   const source = payload && typeof payload === "object" ? payload : defaultSceneRoleStyles;
   const roles = {
@@ -760,14 +785,136 @@ function normalizeSceneAgentConfig(config) {
   };
 }
 
+function normalizeReferenceSceneLayout(payload) {
+  const source = payload && typeof payload === "object" ? payload : defaultReferenceSceneLayoutConfig;
+  const fallback = defaultReferenceSceneLayoutConfig;
+  const imageSize = normalizeSceneImageSize(source.imageSize, fallback.imageSize);
+  const workstations = Array.isArray(source.workstations) && source.workstations.length ? source.workstations : fallback.workstations;
+  const activeSlots = workstations.map((slot, index) => normalizeReferenceWorkstationSlot(slot, index, imageSize));
+  const loungeSource = source.lounge && typeof source.lounge === "object" ? source.lounge : fallback.lounge;
+  const loungeSlots = Array.isArray(loungeSource.slots) && loungeSource.slots.length ? loungeSource.slots : fallback.lounge.slots;
+  return {
+    imageSize,
+    background: normalizeReferenceSceneBackground(source.background, fallback.background),
+    activeSlots,
+    deskRows: buildReferenceDeskRows(activeSlots),
+    loungeArea: normalizeReferenceSceneRect(loungeSource.area, imageSize, fallback.lounge.area),
+    idleSlots: loungeSlots.map((slot) => ({
+      character: normalizeReferenceSceneRect(slot.character, imageSize, fallback.lounge.slots[0].character),
+    })),
+  };
+}
+
+function normalizeSceneImageSize(imageSize, fallbackImageSize) {
+  const source = imageSize && typeof imageSize === "object" ? imageSize : fallbackImageSize;
+  const fallback = fallbackImageSize && typeof fallbackImageSize === "object" ? fallbackImageSize : { width: 1200, height: 896 };
+  const width = Number(source.width);
+  const height = Number(source.height);
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : fallback.width,
+    height: Number.isFinite(height) && height > 0 ? height : fallback.height,
+  };
+}
+
+function normalizeReferenceSceneBackground(background, fallbackBackground) {
+  const source = background && typeof background === "object" ? background : {};
+  const fallback = fallbackBackground && typeof fallbackBackground === "object" ? fallbackBackground : {};
+  return {
+    src: normalizeOptionalString(source.src) || normalizeOptionalString(fallback.src) || "/assets/assets/reference-scene-base.jpg",
+    alt: normalizeOptionalString(source.alt) || normalizeOptionalString(fallback.alt) || "",
+  };
+}
+
+function normalizeReferenceWorkstationSlot(slot, index, imageSize) {
+  const fallbackSlot = defaultReferenceSceneLayoutConfig.workstations[index] || defaultReferenceSceneLayoutConfig.workstations[0];
+  const source = slot && typeof slot === "object" ? slot : fallbackSlot;
+  return {
+    row: Number.isInteger(Number(source.row)) ? Number(source.row) : fallbackSlot.row,
+    character: normalizeReferenceSceneRect(source.character, imageSize, fallbackSlot.character),
+    tag: normalizeReferenceSceneRect(source.tag, imageSize, fallbackSlot.tag),
+  };
+}
+
+function buildReferenceDeskRows(activeSlots) {
+  return activeSlots.reduce((rows, slot) => {
+    if (!rows[slot.row]) {
+      rows[slot.row] = {
+        tagTop: slot.tag.top,
+        characterTop: slot.character.top,
+      };
+    }
+    return rows;
+  }, []);
+}
+
+function normalizeReferenceSceneRect(rect, imageSize, fallbackRect) {
+  const source = rect && typeof rect === "object" ? rect : fallbackRect;
+  const pixelRect = hasScenePixelRect(source) ? source : fallbackRect;
+  if (hasScenePixelRect(pixelRect)) {
+    return convertPixelRectToPercent(pixelRect, imageSize);
+  }
+  return normalizeScenePercentRect(source, fallbackRect);
+}
+
+function hasScenePixelRect(rect) {
+  if (!rect || typeof rect !== "object") {
+    return false;
+  }
+  return ["x", "y", "width", "height"].every((key) => Number.isFinite(Number(rect[key])));
+}
+
+function convertPixelRectToPercent(rect, imageSize) {
+  const x = clampScenePixel(Number(rect.x), imageSize.width);
+  const y = clampScenePixel(Number(rect.y), imageSize.height);
+  const width = clampScenePixel(Number(rect.width), Math.max(imageSize.width - x, 0));
+  const height = clampScenePixel(Number(rect.height), Math.max(imageSize.height - y, 0));
+  return {
+    left: roundScenePercent((x / imageSize.width) * 100),
+    top: roundScenePercent((y / imageSize.height) * 100),
+    width: roundScenePercent((width / imageSize.width) * 100),
+    height: roundScenePercent((height / imageSize.height) * 100),
+  };
+}
+
+function normalizeScenePercentRect(rect, fallbackRect) {
+  const fallback = fallbackRect && typeof fallbackRect === "object" ? fallbackRect : { left: 0, top: 0, width: 0, height: 0 };
+  return {
+    left: roundScenePercent(normalizeScenePercentValue(rect?.left, fallback.left)),
+    top: roundScenePercent(normalizeScenePercentValue(rect?.top, fallback.top)),
+    width: roundScenePercent(normalizeScenePercentValue(rect?.width, fallback.width)),
+    height: roundScenePercent(normalizeScenePercentValue(rect?.height, fallback.height)),
+  };
+}
+
+function normalizeScenePercentValue(value, fallback) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return Number(fallback || 0);
+  }
+  return numericValue;
+}
+
+function clampScenePixel(value, maxValue) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(Math.max(value, 0), Math.max(maxValue, 0));
+}
+
+function roundScenePercent(value) {
+  return Number(Number(value || 0).toFixed(4));
+}
+
 function buildRealtimeSceneModel(payload, sceneRoleStyles) {
   const deskAssignments = assignSceneDeskSlots(payload.agent_sessions, sceneRoleStyles);
-  const officeAssignments = referenceSceneLayout.activeSlots.map((slot, index) => {
-    const source = deskAssignments[index];
-    return source ? createSceneAgent(source, index, sceneRoleStyles) : createUnassignedDeskSlot(index);
-  });
-  const idleDeskAgents = officeAssignments.filter((agent) => agent.sceneState === "idle");
-  const activeDeskAgents = officeAssignments.filter((agent) => agent.sceneState === "active");
+  const assignedAgents = deskAssignments.map((source, index) =>
+    source ? createSceneAgent(source, index, sceneRoleStyles) : null
+  );
+  const officeAssignments = assignedAgents.map((agent, index) =>
+    agent && agent.sceneState === "active" ? agent : createUnassignedDeskSlot(index)
+  );
+  const idleDeskAgents = assignedAgents.filter((agent) => agent && agent.sceneState === "idle");
+  const activeDeskAgents = assignedAgents.filter((agent) => agent && agent.sceneState === "active");
   return {
     officeAgents: officeAssignments,
     idleLoungeAgents: idleDeskAgents.slice(0, referenceSceneLayout.idleSlots.length),
@@ -908,7 +1055,7 @@ function renderRealtimeScene(model) {
       <div class="scene-layout">
         <div class="scene-stage">
           <div class="scene-room">
-            <img class="scene-reference-base" src="/assets/assets/reference-scene-base.jpg" alt="" aria-hidden="true" />
+            <img class="scene-reference-base" src="${escapeAttribute(referenceSceneLayout.background.src)}" alt="${escapeAttribute(referenceSceneLayout.background.alt)}" aria-hidden="true" />
             <div class="scene-lounge-plate" style="${styleFromRect(referenceSceneLayout.loungeArea)}" aria-hidden="true"></div>
             ${referenceSceneLayout.activeSlots
               .map((slot, index) => renderReferenceDeskSlot(model.officeAgents[index], slot, index))
@@ -946,7 +1093,7 @@ function renderRealtimeScene(model) {
             <p class="subtle-label">Live focus</p>
             <div class="scene-sidecard-list">
               <span>Hover any desk or lounge agent to inspect the latest input, model, and thinking level.</span>
-              <span>Idle agents keep desk tags with <code>0</code> tasks while moving into the lounge strip.</span>
+              <span>Idle agents render only in the lounge; their desk anchors stay visibly unassigned until work resumes.</span>
             </div>
           </section>
         </aside>
@@ -956,7 +1103,6 @@ function renderRealtimeScene(model) {
 }
 
 function renderReferenceDeskSlot(agent, slot, index) {
-  const normalizedSlot = normalizeReferenceDeskSlot(slot);
   const stateLabel = formatSceneStateLabel(agent.sceneState);
   const tooltipPayload = escapeAttribute(JSON.stringify(buildSceneTooltipPayload(agent)));
   const tagClassNames = ["scene-reference-tag", `scene-reference-tag-row-${slot.row + 1}`];
@@ -973,16 +1119,16 @@ function renderReferenceDeskSlot(agent, slot, index) {
       >
         <div
           class="scene-reference-vacancy"
-          style="${styleFromRect(normalizedSlot.character)}"
+          style="${styleFromRect(slot.character)}"
           aria-hidden="true"
         ></div>
         <div
           class="${tagClassNames.join(" ")}"
-          style="${styleFromRect(normalizedSlot.tag)}"
+          style="${styleFromRect(slot.tag)}"
           data-scene-tooltip='${tooltipPayload}'
           data-scene-zone="tag"
           data-scene-row="${slot.row + 1}"
-          data-scene-baseline-top="${normalizedSlot.tag.top}"
+          data-scene-baseline-top="${slot.tag.top}"
         >
           <span class="scene-reference-tag-text">${escapeHtml(formatSceneTagText(agent))}</span>
         </div>
@@ -995,14 +1141,14 @@ function renderReferenceDeskSlot(agent, slot, index) {
     ? `
       <div
         class="scene-workstation-resource scene-workstation-resource-active"
-        style="${styleFromRect(normalizedSlot.character)}"
+        style="${styleFromRect(slot.character)}"
         aria-hidden="true"
       ></div>
     `
     : `
       <div
         class="scene-reference-vacancy"
-        style="${styleFromRect(normalizedSlot.character)}"
+        style="${styleFromRect(slot.character)}"
         aria-hidden="true"
       ></div>
     `;
@@ -1020,7 +1166,7 @@ function renderReferenceDeskSlot(agent, slot, index) {
       <button
         type="button"
         class="scene-reference-hotspot ${deskStateClass}"
-        style="${styleFromRect(normalizedSlot.character)}"
+        style="${styleFromRect(slot.character)}"
         data-scene-tooltip='${tooltipPayload}'
         data-scene-zone="workstation"
         aria-label="${escapeAttribute(buildSceneAriaLabel(agent, `workstation ${index + 1}`))}"
@@ -1028,11 +1174,11 @@ function renderReferenceDeskSlot(agent, slot, index) {
       ${workstationVisual}
       <div
         class="${tagClassNames.join(" ")}"
-        style="${styleFromRect(normalizedSlot.tag)}"
+        style="${styleFromRect(slot.tag)}"
         data-scene-tooltip='${tooltipPayload}'
         data-scene-zone="tag"
         data-scene-row="${slot.row + 1}"
-        data-scene-baseline-top="${normalizedSlot.tag.top}"
+        data-scene-baseline-top="${slot.tag.top}"
       >
         <span class="scene-reference-tag-text">${escapeHtml(formatSceneTagText(agent))}</span>
       </div>
@@ -1067,21 +1213,6 @@ function renderReferenceIdleSlot(agent, slot, index) {
 
 function styleFromRect(rect) {
   return `top:${rect.top}%;left:${rect.left}%;width:${rect.width}%;height:${rect.height}%;`;
-}
-
-function normalizeReferenceDeskSlot(slot) {
-  const rowLayout = referenceSceneLayout.deskRows[slot.row] || referenceSceneLayout.deskRows[0];
-  return {
-    row: slot.row,
-    character: {
-      ...slot.character,
-      top: rowLayout.characterTop,
-    },
-    tag: {
-      ...slot.tag,
-      top: rowLayout.tagTop,
-    },
-  };
 }
 
 function formatSceneTagText(agent) {
