@@ -10,63 +10,63 @@
   "workstations": [
     {
       "row": 0,
-      "tag": { "x": 70, "y": 118, "width": 174, "height": 51 },
-      "character": { "x": 82, "y": 182, "width": 116, "height": 150 }
+      "tag": { "x": 75, "y": 118, "width": 174, "height": 51 },
+      "character": { "x": 104, "y": 182, "width": 108, "height": 150 }
     },
     {
       "row": 0,
-      "tag": { "x": 290, "y": 118, "width": 175, "height": 51 },
-      "character": { "x": 304, "y": 184, "width": 112, "height": 148 }
+      "tag": { "x": 295, "y": 118, "width": 175, "height": 51 },
+      "character": { "x": 324, "y": 184, "width": 106, "height": 148 }
     },
     {
       "row": 0,
-      "tag": { "x": 510, "y": 116, "width": 176, "height": 53 },
-      "character": { "x": 525, "y": 182, "width": 110, "height": 150 }
+      "tag": { "x": 515, "y": 116, "width": 176, "height": 53 },
+      "character": { "x": 544, "y": 182, "width": 104, "height": 150 }
     },
     {
       "row": 0,
-      "tag": { "x": 730, "y": 116, "width": 177, "height": 53 },
-      "character": { "x": 746, "y": 182, "width": 110, "height": 150 }
+      "tag": { "x": 735, "y": 116, "width": 177, "height": 53 },
+      "character": { "x": 766, "y": 182, "width": 104, "height": 150 }
     },
     {
       "row": 0,
-      "tag": { "x": 950, "y": 118, "width": 175, "height": 51 },
-      "character": { "x": 967, "y": 184, "width": 108, "height": 148 }
+      "tag": { "x": 955, "y": 118, "width": 175, "height": 51 },
+      "character": { "x": 987, "y": 184, "width": 102, "height": 148 }
     },
     {
       "row": 1,
-      "tag": { "x": 48, "y": 360, "width": 158, "height": 44 },
-      "character": { "x": 20, "y": 438, "width": 190, "height": 205 }
+      "tag": { "x": 48, "y": 396, "width": 158, "height": 44 },
+      "character": { "x": 87, "y": 438, "width": 138, "height": 205 }
     },
     {
       "row": 1,
-      "tag": { "x": 284, "y": 360, "width": 158, "height": 44 },
-      "character": { "x": 248, "y": 438, "width": 182, "height": 205 }
+      "tag": { "x": 284, "y": 396, "width": 158, "height": 44 },
+      "character": { "x": 307, "y": 438, "width": 138, "height": 205 }
     },
     {
       "row": 1,
-      "tag": { "x": 521, "y": 360, "width": 158, "height": 44 },
-      "character": { "x": 474, "y": 438, "width": 178, "height": 205 }
+      "tag": { "x": 521, "y": 396, "width": 158, "height": 44 },
+      "character": { "x": 527, "y": 438, "width": 138, "height": 205 }
     },
     {
       "row": 1,
-      "tag": { "x": 758, "y": 360, "width": 158, "height": 44 },
-      "character": { "x": 699, "y": 438, "width": 174, "height": 205 }
+      "tag": { "x": 758, "y": 396, "width": 158, "height": 44 },
+      "character": { "x": 749, "y": 438, "width": 138, "height": 205 }
     },
     {
       "row": 1,
-      "tag": { "x": 994, "y": 360, "width": 158, "height": 44 },
-      "character": { "x": 923, "y": 438, "width": 170, "height": 205 }
+      "tag": { "x": 994, "y": 396, "width": 158, "height": 44 },
+      "character": { "x": 970, "y": 438, "width": 138, "height": 205 }
     }
   ],
   "lounge": {
-    "area": { "x": 168, "y": 690, "width": 870, "height": 206 },
+    "area": { "x": 220, "y": 690, "width": 870, "height": 206 },
     "slots": [
-      { "character": { "x": 170, "y": 704, "width": 150, "height": 192 } },
-      { "character": { "x": 320, "y": 700, "width": 168, "height": 196 } },
-      { "character": { "x": 488, "y": 699, "width": 171, "height": 197 } },
-      { "character": { "x": 659, "y": 700, "width": 174, "height": 196 } },
-      { "character": { "x": 833, "y": 702, "width": 190, "height": 194 } }
+      { "character": { "x": 218, "y": 704, "width": 150, "height": 192 } },
+      { "character": { "x": 368, "y": 700, "width": 168, "height": 196 } },
+      { "character": { "x": 536, "y": 699, "width": 171, "height": 197 } },
+      { "character": { "x": 707, "y": 700, "width": 174, "height": 196 } },
+      { "character": { "x": 881, "y": 702, "width": 190, "height": 194 } }
     ]
   }
 }
