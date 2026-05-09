@@ -232,6 +232,15 @@ Behavior:
 - fast refresh from live runtime source
 - no dependence on archive availability for core live status
 
+Scene layout contract:
+- Load `clawobserver/static/reference-scene-layout.json` as the authoritative geometry contract for the Realtime office scene.
+- The layout contract is measured against the shipped `static_scene.jpg` asset and defines `imageSize`, `background`, `workstations[].tag`, `workstations[].character`, `lounge.area`, and `lounge.slots[]`.
+- `clawobserver/static/app.js` must normalize those image-pixel rectangles into percentage-based overlay coordinates before rendering so the scene remains aligned across viewport sizes.
+- Active/working agents render only in configured workstation slots.
+- Idle/resting agents render only in configured lounge slots, using the workstation assignment only for tag identity and placeholder state.
+- Unassigned workstations remain visually empty and may still render placeholder hanging tags.
+- Role and accent styling stays in `clawobserver/static/scene-role-styles.json` so geometry and styling remain separate configuration concerns.
+
 ### 6.2 Historical page
 
 Sections:
@@ -303,13 +312,13 @@ Avoid:
 - support shared mouse-hover tooltips on historical charts so hovering an X bucket reveals every series value at that bucket
 - keep the Realtime page's central visualization region as a dedicated 3D-like office/work scene rather than downgrading it to ordinary summary panels
 - treat `/mnt/data/repositories/ClawObserver/docs/reference-ui-viz.jpg` as the scene source of truth: extract/crop its background as the base scene and mirror its layout, proportions, palette, and hanging-tag placement as closely as practical
-- preserve fixed character/nameplate anchor positions derived from the reference image, then render dynamic overlays at those exact anchors for agent name and current parallel task count
+- preserve fixed character/nameplate anchor positions derived from the measured `static_scene.jpg` asset via `clawobserver/static/reference-scene-layout.json`, then render dynamic overlays at those exact anchors for agent name and current parallel task count
 - keep the scene presentation at an overall size that already reads well in the current layout; only use right-side supporting controls/content when practical, without forcing a global shrink
-- enforce straight-row nameplate alignment by using normalized per-row tag baselines and consistent offsets from workstation anchors rather than per-agent drift
+- enforce straight-row nameplate alignment by using normalized per-row tag baselines from the measured layout config and consistent offsets from workstation anchors rather than per-agent drift
 - use blue/deep-tech lighting and office/workspace depth from the reference rather than abstract geometric substitutes
-- treat workstation and lounge zones as separate visual subregions: active agents appear only at desks, idle agents appear only in the lounge using dedicated resting artwork, and empty desks still retain their hanging nameplates with zero tasks
+- treat workstation and lounge zones as separate visual subregions: active agents appear only at configured desks, idle agents appear only in configured lounge slots using dedicated resting artwork, and empty desks still retain their hanging nameplates with zero-task placeholder state
 - make working-versus-idle agent depiction explicit in renderer/component structure so the UI clearly uses distinct resources/visual treatment for desk work versus lounge rest states
-- drive role/agent appearance through external config plus renderer components so presentation can be restyled without rewriting placement logic
+- drive role/agent appearance through external config plus renderer components so presentation can be restyled without rewriting placement logic, while keeping layout geometry in the separate scene-layout config
 - hover bubbles for workstation zones must include latest user-input timestamp, latest user-input content, model, and thinking level, positioned as an overlay that does not reflow the scene
 - when runtime data exposes multiple live tasks for the hovered agent, the tooltip should surface that task list in addition to the required latest-input/model/thinking metadata; when only aggregate/session-summary data exists, the UI must label that limitation honestly instead of implying a complete task inventory
 - when optional session-detail hover data is unavailable, show explicit deferred placeholders in the scene tooltip instead of silently suppressing that surface, or document the hook point if implementation is deferred
@@ -365,12 +374,14 @@ Design decisions:
 - Workstation assignment must be deterministic and agent-centric: configured workstation slots win, previous refresh assignments may only fill unconfigured agents, and no agent may occupy more than one workstation anchor.
 - The hanging tag is rendered from the exact workstation agent object, never from lounge ordering or active-agent sorted lists.
 - Agent visual/status state is derived once while creating the scene agent object and reused for DOM attributes, aria labels, tooltip status, sidecar counts, and tests.
-- Idle agents keep their canonical desk tag with task count `0`; their lounge avatar is a secondary visual representation using the same scene agent object.
+- Scene geometry is split out into `clawobserver/static/reference-scene-layout.json`, which stores measured pixel boxes for the background, desk tags, desk character placements, lounge area, and lounge slots. `app.js` loads that file and normalizes the measured image-space coordinates into percentage rectangles before any rendering.
+- Idle agents keep their canonical desk tag with task count `0`, but their character avatar renders only in a configured lounge slot. Their desk slot stays visually empty apart from the tag/placeholder treatment.
 - Unassigned desk anchors are explicit placeholders and must not be counted as idle agents.
 
 Testing strategy:
 - Add/adjust scene logic tests to cover configured mixed active/idle payloads where agent input order differs from workstation-slot order.
 - Assert rendered tag text, `data-scene-agent-name`, `data-scene-task-count`, `data-scene-state`, tooltip status, active/resting counts, and unassigned slot behavior.
+- Assert the measured scene-layout config normalizes to the expected percentage anchors for workstation tags, workstation character boxes, lounge area, and lounge slots.
 - Run frontend syntax checks, Python tests, a local browser/DOM smoke check, and independent `kimi-cli` acceptance review.
 
 ## Realtime refresh stability design (2026-05-08)

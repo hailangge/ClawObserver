@@ -196,16 +196,17 @@ ClawObserver is acceptable when all of the following are true:
 12. Scene role/agent presentation is configurable through components/config data rather than hardcoded one-off styling.
 13. If hover session details such as ThinkingLevel or latest user input are not yet available from the runtime source, the UI explicitly labels them as deferred placeholders rather than silently omitting them.
 14. The central Realtime visualization must visually match the owner-provided reference image at `/mnt/data/repositories/ClawObserver/docs/reference-ui-viz.jpg` as closely as practical, using that image as the single source of truth for scene layout, palette, proportions, background treatment, and office/workspace visual language.
-15. The implementation must preserve fixed reference-image character/tag positions while embedding dynamic overlays at those exact spots for agent name and current parallel task count.
-16. Scene role/task styling must be driven by a config file or component contract rather than hardcoded per-agent presentation logic.
-17. The owner adjustment pass must keep the overall Realtime office scene scale visually appropriate to the current layout; do not force an across-the-board half-scale shrink.
-18. When horizontal space is available, secondary controls/information should be moved or kept on the right side so the office scene remains the primary focal area.
-19. All hanging agent nameplates must share a perfectly aligned horizontal baseline per row with a consistent vertical offset from the corresponding workstation anchor.
-20. Idle agents must render in a visually distinct lounge/rest zone using dedicated idle/rest artwork, arranged left-to-right in that lounge, while their original workstation areas remain visually empty but retain hanging nameplates with task count `0`.
-21. Hovering a workstation zone must show a bubble containing the latest user-input timestamp, latest user-input content, model, and thinking level for that agent/session; the bubble must follow cursor/agent positioning without breaking layout.
-22. If hover session details such as agent name / ThinkingLevel / latest user input cannot be completed yet, the code must either implement the tooltip or document the explicit hook/deferred location rather than silently omitting it.
-23. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
-24. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
+15. Scene geometry must be driven by `clawobserver/static/reference-scene-layout.json`, with `imageSize`, `background`, `workstations[].tag`, `workstations[].character`, `lounge.area`, and `lounge.slots[]` defining the measured office-scene anchors.
+16. `app.js` must load the scene-layout config and normalize its image-pixel coordinates into percentage-based overlay rectangles so the Realtime scene stays aligned responsively instead of relying on hardcoded one-off positions.
+17. Scene role/task styling must remain driven by `clawobserver/static/scene-role-styles.json` or an equivalent config contract rather than hardcoded per-agent presentation logic.
+18. The owner adjustment pass must keep the overall Realtime office scene scale visually appropriate to the current layout; do not force an across-the-board half-scale shrink.
+19. When horizontal space is available, secondary controls/information should be moved or kept on the right side so the office scene remains the primary focal area.
+20. All hanging agent nameplates must align to the measured boxes from the real `static_scene.jpg` asset, sharing a perfectly aligned horizontal baseline per row with a consistent vertical offset from the corresponding workstation anchor.
+21. Active/working agents must render only at their configured workstation slots. Idle/resting agents must render only in configured lounge slots, while their original workstation areas remain visually empty and may still show placeholder hanging tags with task count `0`.
+22. Hovering a workstation zone must show a bubble containing the latest user-input timestamp, latest user-input content, model, and thinking level for that agent/session; the bubble must follow cursor/agent positioning without breaking layout.
+23. If hover session details such as agent name / ThinkingLevel / latest user input cannot be completed yet, the code must either implement the tooltip or document the explicit hook/deferred location rather than silently omitting it.
+24. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
+25. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
 
 ## 10. Open questions
 
@@ -227,11 +228,17 @@ Functional requirements:
 - Lounge/resting visual placement must not cause the agent's workstation tag to appear under the wrong identity.
 - Agent status text/metadata shown in scene hover cards and scene DOM state must match runtime state: active agents are Working, idle agents are Idle/resting, unassigned anchors are Unassigned.
 - The status derivation must use live per-agent runtime fields conservatively, with `active_sessions > 0` treated as working and `active_sessions === 0` treated as idle/resting.
+- Realtime scene anchor geometry must come from the measured `clawobserver/static/reference-scene-layout.json` contract rather than ad-hoc CSS coordinates, and that contract must include the background image, workstation tag boxes, workstation character boxes, lounge area, and lounge slots.
+- The renderer must normalize measured image-pixel coordinates from the real `static_scene.jpg` asset into responsive percentage-based placement before rendering scene overlays.
+- Active/working agents must render at configured workstation slots, idle/resting agents must render only in configured lounge slots, and unassigned workstation slots must remain visually empty while still being able to show placeholder tags.
+- Role/style presentation must remain configured through `clawobserver/static/scene-role-styles.json`, separate from the scene geometry contract.
 - The fix must preserve the current reference-image scene layout, existing configurable role/agent presentation contract, and scope boundaries.
 
 Acceptance criteria for this repair:
 - Local tests or a browser/DOM smoke check demonstrate that configured agents keep their intended tag identity/count across mixed active/idle payloads.
 - Local tests or a browser/DOM smoke check demonstrate that scene status labels and DOM state agree with the live payload for active, idle, and unassigned slots.
+- Local tests or a browser/DOM smoke check demonstrate that the loaded layout config matches the measured reference-scene tag/desk boxes and that pixel-space measurements are normalized into the expected percentage anchors.
+- Local tests or a browser/DOM smoke check demonstrate that idle agents do not remain seated at desks and instead render only in configured lounge slots while their desk anchors stay empty/placeholder-capable.
 - `node --check clawobserver/static/app.js` and relevant Python/unit tests pass.
 - Independent `kimi-cli` validation reviews the final diff and verification evidence before completion.
 

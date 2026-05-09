@@ -181,9 +181,13 @@ ClawObserver resolves live runtime data in this order:
 
 ## Realtime scene configuration
 
-The Realtime page keeps a central visualization area as the primary agent-work scene. It stays blue/deep-tech and uses the owner reference image in `docs/reference-ui-viz.jpg` as the visual source of truth for the office interior, desk layout, lounge area, and overall proportions. The shipped runtime scene uses a repo-local extracted background asset plus fixed overlay anchors for the active desk workers, the idle lounge worker, and the hanging nameplates.
+The Realtime page keeps a central visualization area as the primary agent-work scene. It stays blue/deep-tech and uses the owner reference image in `docs/reference-ui-viz.jpg` as the visual source of truth for the office interior, desk layout, lounge area, and overall proportions.
 
-Scene role styling is loaded from `clawobserver/static/scene-role-styles.json` so tag accents and any per-agent visual overrides stay config-driven instead of hardcoded in the renderer. Hover cards are still wired through `data-scene-tooltip` hotspots on the fixed character/tag anchors and currently show role plus optional session fields (`ThinkingLevel`, latest user input). When the runtime source does not expose those fields yet, the UI renders an explicit deferred placeholder instead of silently omitting them.
+The shipped scene geometry is config-driven through `clawobserver/static/reference-scene-layout.json`. That file stores the measured office-scene contract for `imageSize`, `background`, `workstations[].tag`, `workstations[].character`, `lounge.area`, and `lounge.slots[]`, using pixel boxes taken from the real `static_scene.jpg` asset. `clawobserver/static/app.js` loads that layout config and normalizes the image-pixel boxes into percentage-based overlay rectangles so desk tags, desk workers, lounge seats, and the extracted background stay aligned responsively.
+
+Active/working agents render only at configured workstation slots. Idle/resting agents no longer stay seated at those desks; they render only in configured lounge slots, while their canonical workstation anchors remain visually empty and can still show placeholder hanging tags with task count `0`. Scene role styling remains separate in `clawobserver/static/scene-role-styles.json` so tag accents and per-agent visual overrides stay config-driven without mixing style rules into the layout geometry contract.
+
+Hover cards are still wired through `data-scene-tooltip` hotspots on the configured character/tag anchors and currently show role plus optional session fields (`ThinkingLevel`, latest user input). When the runtime source does not expose those fields yet, the UI renders an explicit deferred placeholder instead of silently omitting them.
 
 The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI adapter. It:
 

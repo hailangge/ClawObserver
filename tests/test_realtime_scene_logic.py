@@ -87,28 +87,28 @@ class RealtimeSceneLogicTests(unittest.TestCase):
 
     def test_scene_layout_config_matches_asset_analysis_boxes(self) -> None:
         expected_tags = [
-            {"left": 3.4167, "top": 9.933, "width": 12.5833, "height": 6.6964},
-            {"left": 18.3333, "top": 9.933, "width": 13.25, "height": 6.6964},
-            {"left": 33.25, "top": 9.933, "width": 13.8333, "height": 6.6964},
-            {"left": 48.5, "top": 9.933, "width": 13.4167, "height": 6.6964},
-            {"left": 63.75, "top": 9.933, "width": 13.5833, "height": 6.6964},
-            {"left": 2.4167, "top": 43.0804, "width": 15.0, "height": 6.6964},
-            {"left": 18.0, "top": 43.0804, "width": 13.6667, "height": 6.6964},
-            {"left": 33.1667, "top": 43.0804, "width": 13.5833, "height": 6.6964},
-            {"left": 48.4167, "top": 43.0804, "width": 13.4167, "height": 6.6964},
-            {"left": 63.5833, "top": 43.0804, "width": 13.5, "height": 6.6964},
+            {"left": 5.8333, "top": 13.1696, "width": 14.5, "height": 5.692},
+            {"left": 24.1667, "top": 13.1696, "width": 14.5833, "height": 5.692},
+            {"left": 42.5, "top": 12.9464, "width": 14.6667, "height": 5.9152},
+            {"left": 60.8333, "top": 12.9464, "width": 14.75, "height": 5.9152},
+            {"left": 79.1667, "top": 13.1696, "width": 14.5833, "height": 5.692},
+            {"left": 4.0, "top": 40.1786, "width": 13.1667, "height": 4.9107},
+            {"left": 23.6667, "top": 40.1786, "width": 13.1667, "height": 4.9107},
+            {"left": 43.4167, "top": 40.1786, "width": 13.1667, "height": 4.9107},
+            {"left": 63.1667, "top": 40.1786, "width": 13.1667, "height": 4.9107},
+            {"left": 82.8333, "top": 40.1786, "width": 13.1667, "height": 4.9107},
         ]
         expected_desks = [
-            {"left": 6.25, "top": 21.7634, "width": 11.5, "height": 18.4152},
-            {"left": 21.75, "top": 21.7634, "width": 10.5, "height": 18.4152},
-            {"left": 36.9167, "top": 21.4286, "width": 10.75, "height": 18.4152},
-            {"left": 52.3333, "top": 22.0982, "width": 10.6667, "height": 18.4152},
-            {"left": 67.5, "top": 21.9866, "width": 10.5, "height": 18.4152},
-            {"left": 4.5833, "top": 54.9107, "width": 11.4167, "height": 19.5313},
-            {"left": 20.5, "top": 54.9107, "width": 11.25, "height": 19.5313},
-            {"left": 37.25, "top": 54.9107, "width": 11.1667, "height": 19.5313},
-            {"left": 53.6667, "top": 54.3527, "width": 11.0833, "height": 19.5313},
-            {"left": 70.1667, "top": 54.6875, "width": 11.3333, "height": 19.5313},
+            {"left": 6.8333, "top": 20.3125, "width": 9.6667, "height": 16.7411},
+            {"left": 25.3333, "top": 20.5357, "width": 9.3333, "height": 16.5179},
+            {"left": 43.75, "top": 20.3125, "width": 9.1667, "height": 16.7411},
+            {"left": 62.1667, "top": 20.3125, "width": 9.1667, "height": 16.7411},
+            {"left": 80.5833, "top": 20.5357, "width": 9.0, "height": 16.5179},
+            {"left": 1.6667, "top": 48.8839, "width": 15.8333, "height": 22.8795},
+            {"left": 20.6667, "top": 48.8839, "width": 15.1667, "height": 22.8795},
+            {"left": 39.5, "top": 48.8839, "width": 14.8333, "height": 22.8795},
+            {"left": 58.25, "top": 48.8839, "width": 14.5, "height": 22.8795},
+            {"left": 76.9167, "top": 48.8839, "width": 14.1667, "height": 22.8795},
         ]
         script = textwrap.dedent(
             f"""
@@ -150,16 +150,16 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         self.assertEqual(payload["desks"], expected_desks)
         self.assertEqual(
             payload["loungeArea"],
-            {"left": 15.4167, "top": 75.6696, "width": 63.9167, "height": 24.3304},
+            {"left": 14.0, "top": 77.0089, "width": 72.5, "height": 22.9911},
         )
         self.assertEqual(
             payload["loungeSlots"],
             [
-                {"left": 15.4167, "top": 75.6696, "width": 13.1667, "height": 24.3304},
-                {"left": 28.5833, "top": 78.125, "width": 12.6667, "height": 21.875},
-                {"left": 41.25, "top": 78.125, "width": 12.5, "height": 21.875},
-                {"left": 53.75, "top": 78.125, "width": 12.6667, "height": 21.875},
-                {"left": 66.4167, "top": 78.125, "width": 12.9167, "height": 21.875},
+                {"left": 14.1667, "top": 78.5714, "width": 12.5, "height": 21.4286},
+                {"left": 26.6667, "top": 78.125, "width": 14.0, "height": 21.875},
+                {"left": 40.6667, "top": 78.0134, "width": 14.25, "height": 21.9866},
+                {"left": 54.9167, "top": 78.125, "width": 14.5, "height": 21.875},
+                {"left": 69.4167, "top": 78.3482, "width": 15.8333, "height": 21.6518},
             ],
         )
 
@@ -253,8 +253,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "planner",
                     "taskCountAttr": "2",
                     "row": 1,
-                    "baselineTop": "9.933",
-                    "tagStyle": "top:9.933%;left:3.4167%;width:12.5833%;height:6.6964%;",
+                    "baselineTop": "13.1696",
+                    "tagStyle": "top:13.1696%;left:5.8333%;width:14.5%;height:5.692%;",
                     "tagText": "planner (2)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -269,8 +269,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "",
                     "taskCountAttr": "0",
                     "row": 1,
-                    "baselineTop": "9.933",
-                    "tagStyle": "top:9.933%;left:18.3333%;width:13.25%;height:6.6964%;",
+                    "baselineTop": "13.1696",
+                    "tagStyle": "top:13.1696%;left:24.1667%;width:14.5833%;height:5.692%;",
                     "tagText": "Unassigned (0)",
                     "hasActiveResource": False,
                     "hasVacancy": True,
@@ -285,8 +285,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "operator",
                     "taskCountAttr": "1",
                     "row": 1,
-                    "baselineTop": "9.933",
-                    "tagStyle": "top:9.933%;left:33.25%;width:13.8333%;height:6.6964%;",
+                    "baselineTop": "12.9464",
+                    "tagStyle": "top:12.9464%;left:42.5%;width:14.6667%;height:5.9152%;",
                     "tagText": "operator (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -301,8 +301,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "",
                     "taskCountAttr": "0",
                     "row": 1,
-                    "baselineTop": "9.933",
-                    "tagStyle": "top:9.933%;left:48.5%;width:13.4167%;height:6.6964%;",
+                    "baselineTop": "12.9464",
+                    "tagStyle": "top:12.9464%;left:60.8333%;width:14.75%;height:5.9152%;",
                     "tagText": "Unassigned (0)",
                     "hasActiveResource": False,
                     "hasVacancy": True,
@@ -317,8 +317,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "alpha",
                     "taskCountAttr": "1",
                     "row": 1,
-                    "baselineTop": "9.933",
-                    "tagStyle": "top:9.933%;left:63.75%;width:13.5833%;height:6.6964%;",
+                    "baselineTop": "13.1696",
+                    "tagStyle": "top:13.1696%;left:79.1667%;width:14.5833%;height:5.692%;",
                     "tagText": "alpha (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -333,8 +333,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "beta",
                     "taskCountAttr": "1",
                     "row": 2,
-                    "baselineTop": "43.0804",
-                    "tagStyle": "top:43.0804%;left:2.4167%;width:15%;height:6.6964%;",
+                    "baselineTop": "40.1786",
+                    "tagStyle": "top:40.1786%;left:4%;width:13.1667%;height:4.9107%;",
                     "tagText": "beta (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -349,8 +349,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                     "agentNameAttr": "delta",
                     "taskCountAttr": "1",
                     "row": 2,
-                    "baselineTop": "43.0804",
-                    "tagStyle": "top:43.0804%;left:18%;width:13.6667%;height:6.6964%;",
+                    "baselineTop": "40.1786",
+                    "tagStyle": "top:40.1786%;left:23.6667%;width:13.1667%;height:4.9107%;",
                     "tagText": "delta (1)",
                     "hasActiveResource": True,
                     "hasVacancy": False,
@@ -448,7 +448,7 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         self.assertEqual(payload["statusLabel"], "Unassigned desk")
         self.assertEqual(payload["agentNameAttr"], "")
         self.assertEqual(payload["taskCountAttr"], "0")
-        self.assertEqual(payload["baselineTop"], "9.933")
+        self.assertEqual(payload["baselineTop"], "12.9464")
         self.assertEqual(payload["tagText"], "Unassigned (0)")
         self.assertEqual(payload["tooltipStatus"], "Unassigned desk")
         self.assertEqual(
