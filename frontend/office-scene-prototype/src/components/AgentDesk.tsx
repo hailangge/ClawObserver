@@ -32,33 +32,53 @@ function DeskModel({ color, dimmed }: { color: string; dimmed: boolean }) {
     <group>
       <OfficeAssetModel
         assetKey="desk"
-        position={[0, 0.54, 0.02]}
+        position={[0, 0.56, 0.04]}
         rotation={[0, Math.PI / 2, 0]}
-        scale={[4.3, 3.1, 5.15]}
-        appearance={{ tint: color, tintStrength: dimmed ? 0.16 : 0.12 }}
+        scale={[4.7, 3.35, 5.52]}
+        appearance={{ tint: color, tintStrength: dimmed ? 0.18 : 0.14 }}
         userData={{ sceneRole: "desk-model", assetBacked: true, structuralOpacity: DESK_STRUCTURE_VISUAL_MODE }}
         fallback={
           <>
-            <mesh position={[0, 0.68, 0.04]}>
-              <boxGeometry args={[3.3, 0.18, 2.08]} />
-              <meshStandardMaterial color={color} roughness={0.7} metalness={0.06} />
+            <mesh position={[0, 0.72, 0.06]}>
+              <boxGeometry args={[3.58, 0.24, 2.3]} />
+              <meshStandardMaterial color={color} roughness={0.66} metalness={0.05} />
             </mesh>
-            <mesh position={[0, 0.55, 0]}>
-              <boxGeometry args={[2.8, 0.1, 1.18]} />
-              <meshStandardMaterial color={dimmed ? "#55616b" : "#6f7d87"} roughness={0.84} />
+            <mesh position={[0, 0.58, 0.02]}>
+              <boxGeometry args={[3.02, 0.14, 1.3]} />
+              <meshStandardMaterial color={dimmed ? "#75818a" : "#eff0ea"} roughness={0.76} />
             </mesh>
-            {[-1.22, 1.22].flatMap((x) => [-0.76, 0.76].map((z) => ({ x, z }))).map(({ x, z }) => (
+            {[-1.34, 1.34].flatMap((x) => [-0.84, 0.84].map((z) => ({ x, z }))).map(({ x, z }) => (
               <mesh key={`${x}-${z}`} position={[x, 0.31, z]}>
-                <boxGeometry args={[0.13, 0.66, 0.13]} />
-                <meshStandardMaterial color="#748597" roughness={0.68} metalness={0.14} />
+                <boxGeometry args={[0.16, 0.7, 0.16]} />
+                <meshStandardMaterial color="#9eacb8" roughness={0.62} metalness={0.14} />
               </mesh>
             ))}
           </>
         }
       />
-      <mesh position={[0, 0.83, 0.8]}>
-        <boxGeometry args={[2.38, 0.045, 0.14]} />
-        <meshStandardMaterial color={dimmed ? "#89939b" : "#d6d8d5"} roughness={0.72} />
+      <mesh position={[0, 0.9, 0.88]}>
+        <boxGeometry args={[2.64, 0.085, 0.22]} />
+        <meshStandardMaterial color={dimmed ? "#90989f" : "#f1e6d5"} roughness={0.62} />
+      </mesh>
+      <mesh position={[0, 0.92, -0.88]}>
+        <boxGeometry args={[2.5, 0.08, 0.22]} />
+        <meshStandardMaterial color={dimmed ? "#74818c" : "#f0cf8e"} roughness={0.58} />
+      </mesh>
+      {[-1.28, 1.28].map((x) => (
+        <mesh key={`edge-bump-${x}`} position={[x, 0.82, 0.1]}>
+          <capsuleGeometry args={[0.12, 1.55, 6, 10]} />
+          <meshStandardMaterial color={dimmed ? "#7c8892" : "#d7bf9d"} roughness={0.7} />
+        </mesh>
+      ))}
+      {[-0.92, 0.92].map((x) => (
+        <mesh key={`caster-${x}`} position={[x, 0.1, 1.1]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.09, 0.04, 8, 14]} />
+          <meshStandardMaterial color="#56606b" roughness={0.7} metalness={0.12} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.97, 0.08]}>
+        <boxGeometry args={[1.12, 0.09, 1.72]} />
+        <meshStandardMaterial color={dimmed ? "#e0d6c6" : "#fff7ea"} roughness={0.92} />
       </mesh>
     </group>
   );
@@ -66,34 +86,42 @@ function DeskModel({ color, dimmed }: { color: string; dimmed: boolean }) {
 
 function Chair({ color, dimmed }: { color: string; dimmed: boolean }) {
   return (
-    <group position={[0, 0.42, 1.3]}>
+    <group position={[0, 0.44, 1.38]}>
       <OfficeAssetModel
         assetKey="chairDesk"
         rotation={[0, Math.PI / 2, 0]}
-        scale={[3.15, 2.06, 2.92]}
-        appearance={{ tint: color, tintStrength: dimmed ? 0.14 : 0.1 }}
+        scale={[3.46, 2.22, 3.18]}
+        appearance={{ tint: color, tintStrength: dimmed ? 0.16 : 0.12 }}
         userData={{ sceneRole: "chair-model", assetBacked: true, structuralOpacity: DESK_STRUCTURE_VISUAL_MODE }}
         fallback={
           <>
             <mesh>
-              <boxGeometry args={[1.08, 0.14, 0.92]} />
-              <meshStandardMaterial color={color} roughness={0.82} />
+              <boxGeometry args={[1.18, 0.18, 1.02]} />
+              <meshStandardMaterial color={color} roughness={0.76} />
             </mesh>
-            <mesh position={[0, 0.52, -0.32]}>
-              <boxGeometry args={[1.04, 0.9, 0.14]} />
-              <meshStandardMaterial color={color} roughness={0.84} />
+            <mesh position={[0, 0.58, -0.34]}>
+              <boxGeometry args={[1.08, 1.02, 0.18]} />
+              <meshStandardMaterial color={color} roughness={0.8} />
             </mesh>
             <mesh position={[0, -0.22, 0]}>
-              <cylinderGeometry args={[0.08, 0.09, 0.42, 14]} />
-              <meshStandardMaterial color="#6d7988" roughness={0.68} metalness={0.18} />
+              <cylinderGeometry args={[0.11, 0.13, 0.46, 14]} />
+              <meshStandardMaterial color="#74818f" roughness={0.64} metalness={0.16} />
             </mesh>
-            <mesh position={[0, -0.44, 0]}>
-              <boxGeometry args={[1.02, 0.08, 0.2]} />
-              <meshStandardMaterial color="#66778a" roughness={0.76} />
+            <mesh position={[0, -0.47, 0]}>
+              <boxGeometry args={[1.14, 0.1, 0.24]} />
+              <meshStandardMaterial color="#7f90a3" roughness={0.72} />
             </mesh>
           </>
         }
       />
+      <mesh position={[0, 0.16, -0.02]}>
+        <boxGeometry args={[1.14, 0.18, 0.92]} />
+        <meshStandardMaterial color={dimmed ? "#7d8891" : "#f1c96e"} roughness={0.66} />
+      </mesh>
+      <mesh position={[0, 0.72, -0.34]}>
+        <boxGeometry args={[1.14, 0.68, 0.24]} />
+        <meshStandardMaterial color={dimmed ? "#6c7680" : "#efb062"} roughness={0.68} />
+      </mesh>
     </group>
   );
 }
@@ -115,7 +143,7 @@ function Monitor({
         assetKey="computerScreen"
         position={[0, -0.42, 0]}
         rotation={[0, Math.PI / 2, 0]}
-        scale={[2.82, 3.14, 1.22]}
+        scale={[3.08, 3.42, 1.34]}
         appearance={{ tint: color, tintStrength: 0.12, opacity: dimmed ? 0.38 : 1 }}
         userData={{ sceneRole: "monitor-model", assetBacked: true }}
         fallback={
@@ -172,7 +200,7 @@ function Monitor({
         }
       />
       <mesh position={[0, 0, 0.055]}>
-        <planeGeometry args={[1.22, 0.72]} />
+        <planeGeometry args={[1.32, 0.8]} />
         <meshStandardMaterial
           color={dimmed ? "#1d2430" : "#e3f1ff"}
           emissive={emissive}
@@ -189,6 +217,10 @@ function Monitor({
         <planeGeometry args={[0.36, 0.04]} />
         <meshStandardMaterial color="#78d4d3" emissive="#78d4d3" emissiveIntensity={dimmed ? 0 : 0.06} transparent opacity={0.3} />
       </mesh>
+      <mesh position={[0, -0.44, -0.02]}>
+        <boxGeometry args={[1.62, 0.12, 0.16]} />
+        <meshStandardMaterial color={dimmed ? "#8a949e" : "#f4d792"} roughness={0.56} />
+      </mesh>
     </group>
   );
 }
@@ -197,12 +229,16 @@ function StatusLamp({ color, active }: { color: string; active: boolean }) {
   return (
     <group position={[1.18, 1.08, -0.42]}>
       <mesh>
-        <cylinderGeometry args={[0.1, 0.1, 0.22, 18]} />
-        <meshStandardMaterial color="#b6c0cb" roughness={0.48} metalness={0.22} />
+        <cylinderGeometry args={[0.12, 0.14, 0.26, 18]} />
+        <meshStandardMaterial color="#d3dde5" roughness={0.44} metalness={0.18} />
       </mesh>
       <mesh position={[0, 0.17, 0]}>
-        <sphereGeometry args={[0.16, 18, 18]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 1.1 : 0.24} />
+        <sphereGeometry args={[0.19, 18, 18]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 1.18 : 0.24} />
+      </mesh>
+      <mesh position={[0, -0.08, 0]}>
+        <sphereGeometry args={[0.13, 16, 16]} />
+        <meshStandardMaterial color="#f8e7c3" roughness={0.7} />
       </mesh>
     </group>
   );
@@ -216,8 +252,8 @@ function TaskStack({ count }: { count: number }) {
     <group position={[-1.18, 0.9, -0.12]}>
       {blocks.map((block) => (
         <mesh key={block} position={[0, block * 0.08, 0]}>
-          <boxGeometry args={[0.42, 0.06, 0.52]} />
-          <meshStandardMaterial color="#e8ecf1" roughness={0.88} />
+          <boxGeometry args={[0.48, 0.08, 0.56]} />
+          <meshStandardMaterial color={block % 2 === 0 ? "#f3f0e7" : "#dbe7f5"} roughness={0.86} />
         </mesh>
       ))}
       {visibleCount > 0 ? (
@@ -226,15 +262,21 @@ function TaskStack({ count }: { count: number }) {
           position={[0.16, visibleCount * 0.03, 0.16]}
           rotation={[0, Math.PI / 2, 0]}
           scale={[1.16, 0.82, 1.12]}
-          appearance={{ tint: "#f6d788", tintStrength: 0.12 }}
+          appearance={{ tint: "#f6d788", tintStrength: 0.16 }}
           userData={{ sceneRole: "books-model", assetBacked: true }}
           fallback={
             <mesh position={[0.14, visibleCount * 0.036, 0.12]}>
               <boxGeometry args={[0.18, 0.03, 0.2]} />
-              <meshStandardMaterial color="#f6d788" roughness={0.82} />
+              <meshStandardMaterial color="#f6d788" roughness={0.8} />
             </mesh>
           }
         />
+      ) : null}
+      {visibleCount > 0 ? (
+        <mesh position={[-0.14, visibleCount * 0.08 + 0.05, 0.08]} rotation={[0, 0.2, 0]}>
+          <capsuleGeometry args={[0.08, 0.26, 4, 8]} />
+          <meshStandardMaterial color="#ef8f69" roughness={0.72} />
+        </mesh>
       ) : null}
     </group>
   );
@@ -327,7 +369,7 @@ export function AgentDesk({
   const visual = STATUS_VISUALS[agent?.status ?? "offline"];
   const hoverScale = hovered || selected ? 1.03 : 1;
   const deskName = agent?.name ?? label;
-  const deskSubtitle = agent ? `${agent.status} - ${Math.max(agent.taskCount, 0)} tasks` : "empty slot";
+  const deskSubtitle = agent ? `${agent.status} - ${Math.max(agent.taskCount, 0)} tasks` : "toy office slot";
 
   return (
     <group
@@ -350,11 +392,22 @@ export function AgentDesk({
         <StatusLamp color={visual.lampColor} active={!visual.dimmed} />
         <TaskStack count={agent?.taskCount ?? 0} />
         {!agent ? (
-          <mesh position={[0, 0.98, 0.16]}>
-            <boxGeometry args={[1.08, 0.1, 0.56]} />
-            <meshStandardMaterial color="#a28e75" roughness={0.9} />
+          <group position={[0, 1.02, 0.18]}>
+            <mesh>
+              <boxGeometry args={[1.18, 0.12, 0.64]} />
+              <meshStandardMaterial color="#d6b28d" roughness={0.88} />
+            </mesh>
+            <mesh position={[0.02, 0.1, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <capsuleGeometry args={[0.12, 0.42, 4, 8]} />
+              <meshStandardMaterial color="#f3df93" roughness={0.72} />
+            </mesh>
+          </group>
+        ) : (
+          <mesh position={[1.02, 0.98, 0.38]} rotation={[0, 0.45, 0]}>
+            <capsuleGeometry args={[0.08, 0.22, 4, 8]} />
+            <meshStandardMaterial color={selected ? "#ffd788" : "#f2b06b"} roughness={0.64} />
           </mesh>
-        ) : null}
+        )}
       </group>
       <AgentLabel text={deskName} selected={selected} subtitle={deskSubtitle} />
       {(hovered || selected) && (

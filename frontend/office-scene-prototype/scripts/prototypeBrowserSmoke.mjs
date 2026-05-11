@@ -27,6 +27,18 @@ const REQUIRED_LABEL_LAYER_MODE = "elevated-forward-billboard";
 const REQUIRED_LABEL_PLATE_MODE = "opaque-high-contrast";
 const REQUIRED_DESK_STRUCTURE_VISUAL_MODE = "opaque";
 const REQUIRED_OVERHEAD_SIGHTLINE_MODE = "clear-back-row";
+const REQUIRED_FRONT_LABEL_LANE_CLEARANCE_MODE = "open-center";
+const REQUIRED_STYLE_PROFILE = "toy-office-chunky-warm";
+const REQUIRED_STYLE_REFERENCE = "quaternius-inspired-safe-emulation";
+const MIN_SCREENSHOT_FILE_BYTES = 100000;
+const MIN_LABEL_BAND_MID_VARIANCE_PIXELS = 42000;
+const MIN_LABEL_BAND_UNIQUE_BUCKETS = 500;
+const MAX_LABEL_BAND_DOMINANT_BUCKET_RATIO = 0.16;
+const MIN_DESK_BAND_MID_VARIANCE_PIXELS = 150000;
+const MIN_DESK_BAND_UNIQUE_BUCKETS = 650;
+const MAX_DESK_BAND_DOMINANT_BUCKET_RATIO = 0.22;
+const SCREENSHOT_LABEL_BAND = { left: 0.28, right: 0.72, top: 0.2, bottom: 0.38 };
+const SCREENSHOT_DESK_BAND = { left: 0.08, right: 0.92, top: 0.36, bottom: 0.72 };
 const REQUIRED_OFFICE_ASSET_REQUESTS = [
   "/assets/prototype/office-assets/kenney/models/desk.obj",
   "/assets/prototype/office-assets/kenney/models/chairDesk.obj",
@@ -225,6 +237,155 @@ function analyzePng(pngBuffer) {
   return {
     width,
     height,
+    fileBytes: pngBuffer.length,
+    brightPixels,
+    darkPixels,
+    midVariancePixels,
+    uniqueBuckets: buckets.size,
+    dominantBucketRatio,
+    lumaSpread:
+      Number.isFinite(minLuma) && Number.isFinite(maxLuma)
+        ? maxLuma - minLuma
+        : 0,
+  };
+}
+
+function analyzePngBand(pngBuffer, band) {
+  const signature = pngBuffer.subarray(0, 8);
+  const expectedSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (!signature.equals(expectedSignature)) {
+    throw new Error("Smoke screenshot is not a PNG");
+  }
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idatChunks = [];
+
+  while (offset < pngBuffer.length) {
+    const length = pngBuffer.readUInt32BE(offset);
+    const type = pngBuffer.toString("ascii", offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + length;
+    const data = pngBuffer.subarray(dataStart, dataEnd);
+
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+    } else if (type === "IDAT") {
+      idatChunks.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+
+    offset = dataEnd + 4;
+  }
+
+  if (bitDepth !== 8 || ![2, 6].includes(colorType)) {
+    throw new Error(`Unsupported PNG format: bitDepth=${bitDepth} colorType=${colorType}`);
+  }
+
+  const compressed = Buffer.concat(idatChunks);
+  const inflated = inflateSync(compressed);
+  const bytesPerPixel = colorType === 6 ? 4 : 3;
+  const stride = width * bytesPerPixel;
+  const bytesPerScanline = stride + 1;
+  const reconstructed = Buffer.alloc(width * height * bytesPerPixel);
+  const prior = Buffer.alloc(stride);
+  const current = Buffer.alloc(stride);
+
+  const paethPredictor = (a, b, c) => {
+    const p = a + b - c;
+    const pa = Math.abs(p - a);
+    const pb = Math.abs(p - b);
+    const pc = Math.abs(p - c);
+    if (pa <= pb && pa <= pc) {
+      return a;
+    }
+    if (pb <= pc) {
+      return b;
+    }
+    return c;
+  };
+
+  for (let y = 0; y < height; y += 1) {
+    const rowStart = y * bytesPerScanline;
+    const filterType = inflated[rowStart];
+    const filtered = inflated.subarray(rowStart + 1, rowStart + 1 + stride);
+
+    for (let i = 0; i < stride; i += 1) {
+      const left = i >= 4 ? current[i - 4] : 0;
+      const up = prior[i];
+      const upLeft = i >= 4 ? prior[i - 4] : 0;
+      let value = filtered[i];
+
+      if (filterType === 1) {
+        value = (value + left) & 0xff;
+      } else if (filterType === 2) {
+        value = (value + up) & 0xff;
+      } else if (filterType === 3) {
+        value = (value + Math.floor((left + up) / 2)) & 0xff;
+      } else if (filterType === 4) {
+        value = (value + paethPredictor(left, up, upLeft)) & 0xff;
+      } else if (filterType !== 0) {
+        throw new Error(`Unsupported PNG filter type: ${filterType}`);
+      }
+
+      current[i] = value;
+    }
+
+    current.copy(reconstructed, y * stride);
+    current.copy(prior);
+  }
+
+  const centerLeft = Math.floor(width * band.left);
+  const centerRight = Math.ceil(width * band.right);
+  const centerTop = Math.floor(height * band.top);
+  const centerBottom = Math.ceil(height * band.bottom);
+  let brightPixels = 0;
+  let darkPixels = 0;
+  let midVariancePixels = 0;
+  let minLuma = Number.POSITIVE_INFINITY;
+  let maxLuma = Number.NEGATIVE_INFINITY;
+  const buckets = new Map();
+
+  for (let y = centerTop; y < centerBottom; y += 1) {
+    for (let x = centerLeft; x < centerRight; x += 1) {
+      const idx = (y * width + x) * bytesPerPixel;
+      const r = reconstructed[idx];
+      const g = reconstructed[idx + 1];
+      const b = reconstructed[idx + 2];
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      const channelSpread = Math.max(r, g, b) - Math.min(r, g, b);
+      const bucketKey = `${r >> 4}-${g >> 4}-${b >> 4}`;
+
+      buckets.set(bucketKey, (buckets.get(bucketKey) ?? 0) + 1);
+      minLuma = Math.min(minLuma, luma);
+      maxLuma = Math.max(maxLuma, luma);
+
+      if (luma >= 148 || channelSpread >= 82) {
+        brightPixels += 1;
+      }
+      if (luma <= 44) {
+        darkPixels += 1;
+      }
+      if (luma >= 56 && luma <= 210 && channelSpread >= 20) {
+        midVariancePixels += 1;
+      }
+    }
+  }
+
+  const bucketCounts = [...buckets.values()];
+  const dominantBucketRatio =
+    bucketCounts.length > 0
+      ? Math.max(...bucketCounts) / bucketCounts.reduce((sum, count) => sum + count, 0)
+      : 1;
+
+  return {
     brightPixels,
     darkPixels,
     midVariancePixels,
@@ -352,6 +513,8 @@ async function openAndInspectPage(page, url, sceneSelector, screenshotPath, eval
   await page.locator(sceneSelector).first().screenshot({ path: screenshotPath });
   const screenshotBuffer = await fs.promises.readFile(screenshotPath);
   const screenshotMetrics = analyzePng(screenshotBuffer);
+  const labelBandMetrics = analyzePngBand(screenshotBuffer, SCREENSHOT_LABEL_BAND);
+  const deskBandMetrics = analyzePngBand(screenshotBuffer, SCREENSHOT_DESK_BAND);
   const { consoleErrors, unexpectedWarnings, unexpectedDebugLogs } = collectConsoleProblems(consoleMessages);
 
   return {
@@ -366,6 +529,8 @@ async function openAndInspectPage(page, url, sceneSelector, screenshotPath, eval
     performanceMetrics: sceneMetrics.performanceMetrics ?? null,
     requestCounts: Object.fromEntries(requestCounts.entries()),
     screenshotMetrics,
+    labelBandMetrics,
+    deskBandMetrics,
     screenshotPath,
   };
 }
@@ -427,18 +592,28 @@ function assertSharedSceneQuality(result) {
     result.sceneMetrics.deskStructureVisual !== REQUIRED_DESK_STRUCTURE_VISUAL_MODE ||
     result.sceneMetrics.structuralOpacity !== "opaque" ||
     result.sceneMetrics.overheadSightline !== REQUIRED_OVERHEAD_SIGHTLINE_MODE ||
+    result.sceneMetrics.frontLabelLaneClearance !== REQUIRED_FRONT_LABEL_LANE_CLEARANCE_MODE ||
     result.screenshotMetrics.brightPixels < MIN_BRIGHT_PIXELS ||
     result.screenshotMetrics.darkPixels < MIN_DARK_PIXELS ||
     result.screenshotMetrics.midVariancePixels < MIN_MID_VARIANCE_PIXELS ||
     result.screenshotMetrics.uniqueBuckets < MIN_UNIQUE_BUCKETS ||
     result.screenshotMetrics.dominantBucketRatio > MAX_DOMINANT_BUCKET_RATIO ||
     result.screenshotMetrics.lumaSpread < MIN_LUMA_SPREAD ||
+    result.screenshotMetrics.fileBytes < MIN_SCREENSHOT_FILE_BYTES ||
+    result.labelBandMetrics.midVariancePixels < MIN_LABEL_BAND_MID_VARIANCE_PIXELS ||
+    result.labelBandMetrics.uniqueBuckets < MIN_LABEL_BAND_UNIQUE_BUCKETS ||
+    result.labelBandMetrics.dominantBucketRatio > MAX_LABEL_BAND_DOMINANT_BUCKET_RATIO ||
+    result.deskBandMetrics.midVariancePixels < MIN_DESK_BAND_MID_VARIANCE_PIXELS ||
+    result.deskBandMetrics.uniqueBuckets < MIN_DESK_BAND_UNIQUE_BUCKETS ||
+    result.deskBandMetrics.dominantBucketRatio > MAX_DESK_BAND_DOMINANT_BUCKET_RATIO ||
     !String(result.sceneMetrics.statusBoardText).includes("Global status") ||
     result.sceneMetrics.assetStrategy !== "kenney-obj-local-fallback" ||
     result.sceneMetrics.assetSource !== "kenney-furniture-kit-cc0" ||
     result.sceneMetrics.officeAssetModelCount !== 9 ||
     result.sceneMetrics.frameloop !== "demand" ||
     result.sceneMetrics.performanceMode !== "idle-on-demand" ||
+    result.sceneMetrics.styleProfile !== REQUIRED_STYLE_PROFILE ||
+    result.sceneMetrics.styleReference !== REQUIRED_STYLE_REFERENCE ||
     (result.performanceMetrics?.postSettleAnimationFrames ?? Number.POSITIVE_INFINITY) > MAX_IDLE_ANIMATION_FRAMES ||
     !String(result.sceneMetrics.licensePath).includes("/office-assets/kenney/licenses/Kenney-Furniture-Kit-CC0.txt") ||
     !String(result.sceneMetrics.provenancePath).includes("/office-assets/kenney/provenance.json") ||
@@ -484,6 +659,7 @@ async function validatePrototype(page, prototypeUrl, screenshotPath) {
         deskStructureVisual: sceneRoot?.getAttribute("data-scene-desk-structure-visual") ?? null,
         structuralOpacity: sceneRoot?.getAttribute("data-scene-structural-opacity") ?? null,
         overheadSightline: sceneRoot?.getAttribute("data-scene-overhead-sightline") ?? null,
+        frontLabelLaneClearance: sceneRoot?.getAttribute("data-scene-front-label-lane-clearance") ?? null,
         assetStrategy: sceneRoot?.getAttribute("data-scene-asset-strategy") ?? null,
         assetSource: sceneRoot?.getAttribute("data-scene-asset-source") ?? null,
         officeAssetModelCount: Number(sceneRoot?.getAttribute("data-scene-office-asset-model-count") ?? "0"),
@@ -491,6 +667,8 @@ async function validatePrototype(page, prototypeUrl, screenshotPath) {
         provenancePath: sceneRoot?.getAttribute("data-scene-provenance-path") ?? null,
         frameloop: sceneRoot?.getAttribute("data-scene-frameloop") ?? null,
         performanceMode: sceneRoot?.getAttribute("data-scene-performance-mode") ?? null,
+        styleProfile: sceneRoot?.getAttribute("data-scene-style-profile") ?? null,
+        styleReference: sceneRoot?.getAttribute("data-scene-style-reference") ?? null,
         statusBoardText: statusBoard?.textContent ?? "",
         sceneFitStatus: sceneRoot?.getAttribute("data-scene-fit-status") ?? null,
         sceneFitLeft: Number(sceneRoot?.getAttribute("data-scene-fit-left") ?? "0"),
@@ -591,6 +769,7 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
         deskStructureVisual: sceneRoot?.getAttribute("data-scene-desk-structure-visual") ?? null,
         structuralOpacity: sceneRoot?.getAttribute("data-scene-structural-opacity") ?? null,
         overheadSightline: sceneRoot?.getAttribute("data-scene-overhead-sightline") ?? null,
+        frontLabelLaneClearance: sceneRoot?.getAttribute("data-scene-front-label-lane-clearance") ?? null,
         assetStrategy: sceneRoot?.getAttribute("data-scene-asset-strategy") ?? null,
         assetSource: sceneRoot?.getAttribute("data-scene-asset-source") ?? null,
         officeAssetModelCount: Number(sceneRoot?.getAttribute("data-scene-office-asset-model-count") ?? "0"),
@@ -598,6 +777,8 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
         provenancePath: sceneRoot?.getAttribute("data-scene-provenance-path") ?? null,
         frameloop: sceneRoot?.getAttribute("data-scene-frameloop") ?? null,
         performanceMode: sceneRoot?.getAttribute("data-scene-performance-mode") ?? null,
+        styleProfile: sceneRoot?.getAttribute("data-scene-style-profile") ?? null,
+        styleReference: sceneRoot?.getAttribute("data-scene-style-reference") ?? null,
         runtimeStatus: sceneRoot?.getAttribute("data-runtime-status") ?? null,
         statusBoardRuntime: statusBoard?.getAttribute("data-runtime-status") ?? null,
         hoveredCardPresent: Boolean(hoveredCard),

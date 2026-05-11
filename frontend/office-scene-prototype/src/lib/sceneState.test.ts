@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DESK_LABEL_LAYER_MODE, DESK_LABEL_ORIENTATION_MODE, DESK_LABEL_PLATE_MODE, DESK_STRUCTURE_VISUAL_MODE } from "../components/AgentDesk";
-import { SCENE_FRAMELOOP_MODE, SCENE_PERFORMANCE_MODE } from "../components/AgentOfficeScene";
+import {
+  SCENE_FRAMELOOP_MODE,
+  SCENE_PERFORMANCE_MODE,
+  SCENE_STYLE_PROFILE,
+  SCENE_STYLE_REFERENCE_MODE,
+} from "../components/AgentOfficeScene";
 import { STRUCTURAL_OPACITY_MODE } from "../components/OfficeProps";
-import { OVERHEAD_SIGHTLINE_MODE } from "../components/OfficeShell";
+import { FRONT_LABEL_LANE_CLEARANCE_MODE, OVERHEAD_SIGHTLINE_MODE } from "../components/OfficeShell";
 import { FIXED_WORKSTATION_SLOT_COUNT, FIXED_WORKSTATION_SLOTS, MAX_VISIBLE_TASK_BLOCKS } from "../config/workstationSlots";
 import {
   OFFICE_ASSET_LICENSE_PATH,
@@ -27,8 +32,11 @@ describe("sceneState", () => {
     expect(DESK_STRUCTURE_VISUAL_MODE).toBe("opaque");
     expect(STRUCTURAL_OPACITY_MODE).toBe("opaque");
     expect(OVERHEAD_SIGHTLINE_MODE).toBe("clear-back-row");
+    expect(FRONT_LABEL_LANE_CLEARANCE_MODE).toBe("open-center");
     expect(SCENE_FRAMELOOP_MODE).toBe("demand");
     expect(SCENE_PERFORMANCE_MODE).toBe("idle-on-demand");
+    expect(SCENE_STYLE_PROFILE).toBe("toy-office-chunky-warm");
+    expect(SCENE_STYLE_REFERENCE_MODE).toBe("quaternius-inspired-safe-emulation");
   });
 
   it("declares the repo-local Kenney asset strategy and metadata", () => {

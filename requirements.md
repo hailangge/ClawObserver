@@ -90,6 +90,9 @@ MVP requirements:
 - The production scene should more closely match the warmth, geometry, and human-friendly skeuomorphic office feel of `static_scene.jpg` while remaining lightweight and reliable.
 - The current implementation should prefer a small curated repo-local subset of permissively licensed open-source office models for desks, chairs, monitor gear, plants, lounge furniture, and bookcases when a deterministic redistribution path is available.
 - Any adopted asset must be repo-local, license-documented, provenance-documented with exact upstream archive/file identity, deterministic/offline at runtime, and compatible with production bundling.
+- This run's approved style reference is the rounded, chunky, colorful low-poly office feel associated with Quaternius Furniture Pack, but that reference is visual only unless a deterministic CC0 redistribution path with checksums and repo-local provenance is established.
+- If Quaternius assets cannot be adopted safely and deterministically, the implementation must emulate that toy-like style using the existing repo-local Kenney geometry plus rendering and composition changes such as chunkier proportions, rounded companion primitives, warmer saturated materials, stronger prop dressing, and less bare office staging.
+- Existing Kenney license, provenance, primitive fallback, and offline-runtime guarantees must remain intact unless any added asset set meets the same standard with explicit checksum evidence.
 - The scene must keep primitive fallbacks behind the same component seam so future asset failures or swaps do not change the live data contract or blank the scene.
 - People, avatars, and agent-behavior animation are explicitly Phase 2 and out of MVP scope, but the scene contract must reserve extension points for them.
 
@@ -203,7 +206,8 @@ This means:
 - restrained color accents are preferred over loud gradients or neon overload
 - typography and layout should feel precise and operational
 - panels should look intentional and modern without feeling like a sci-fi gimmick
-- the central Realtime scene should read as a clean operational workspace rather than a toy or a cinematic setpiece
+- the central Realtime scene should remain operational and readable, but it should no longer feel bare; it should present a stylized Q-version/toy-like office treatment with rounded/chunky forms, warmer saturated palette choices, and clearer prop storytelling
+- Quaternius is a shape/style reference here, not permission for nondeterministic third-party asset replacement
 - the 3D scene should emphasize state legibility and embedding practicality over rendering spectacle
 - the header should include reliable branded ClawObserver artwork using an OpenClaw-style lobster with a magnifying glass and an enlarged magnified eye
 - historical charts must render visible Y-axis labels and shared mouse-hover tooltips that show every series value at the hovered X bucket

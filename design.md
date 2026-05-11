@@ -224,8 +224,11 @@ Sections:
 - Third-party office/furniture assets, if adopted, must ship from repo-local static paths under the existing Python-served asset tree.
 - Runtime scene rendering must not depend on live third-party network fetches.
 - The current design target is a curated small Kenney `Furniture Kit` subset served as local `OBJ/MTL` files with bundled license and provenance metadata.
+- The approved visual target for the current pass is a Quaternius-inspired rounded/chunky toy-office look, but only as a style reference unless a deterministic CC0 Quaternius package with pinned checksums is added to the repo.
+- If deterministic Quaternius provenance is unavailable or too risky, the renderer should keep the current Kenney-local geometry pipeline and push style through chunkier scales, warmer saturated materials, rounded helper primitives, and denser prop composition instead of changing the asset provenance baseline.
 - Model loading must stay behind renderer-local components so the `AgentVisualState[]` adapter contract remains unchanged.
 - Each imported model path should retain a deterministic primitive fallback to avoid blank-scene regressions if a local asset fails to load or parse.
+- Existing Kenney license/provenance documents and offline guarantees remain part of the design contract and must not be weakened by this style pass.
    - active sessions
    - total sessions
    - derived idle sessions
@@ -253,6 +256,7 @@ Scene MVP behavior:
 - Desk-scale objects should be visibly larger: enlarge desk/table geometry, monitor screens, labels/nameplates, status lamps, and task stacks relative to the room and camera so text/status information can be inspected without zooming.
 - Visual layout and style should be aligned to `clawobserver/static/assets/static_scene.jpg`, covering both the work area and a reserved rest/lounge area.
 - The visual treatment should push closer to the reference image's warmer, friendlier, lightly skeuomorphic office feel while keeping geometry and materials inexpensive to render.
+- The current style pass should further exaggerate that into a toy-like Q-version office treatment: chunkier desks/chairs, softer rounded silhouettes, more colorful props, and a fuller lounge/background composition while preserving overhead readability.
 - The rest/lounge area can be simple in MVP but must remain a distinct reserved region for Phase 2 person/task/status expansion.
 - The MVP object vocabulary is limited to office shell, desks/workstations, monitors, status lamps, capped task/file stacks, labels/nameplates, a global status board, and simple low-poly office props.
 - Evaluate permissively licensed open-source 3D asset libraries for office furniture/props when practical. Imported assets must be small, license-documented, repo-local, and runtime-offline; otherwise implement a clear local `OfficeProps`/asset seam using richer primitive low-poly components.

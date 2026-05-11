@@ -17,7 +17,7 @@ import { OFFICE_ASSET_LICENSE_PATH, OFFICE_ASSET_MODEL_COUNT, OFFICE_ASSET_PROVE
 import { DeskGrid } from "./DeskGrid";
 import { GlobalStatusBoard } from "./GlobalStatusBoard";
 import { STRUCTURAL_OPACITY_MODE } from "./OfficeProps";
-import { OfficeShell, OVERHEAD_SIGHTLINE_MODE } from "./OfficeShell";
+import { FRONT_LABEL_LANE_CLEARANCE_MODE, OfficeShell, OVERHEAD_SIGHTLINE_MODE } from "./OfficeShell";
 
 type AgentOfficeSceneProps = {
   agents: AgentVisualState[];
@@ -36,6 +36,8 @@ const SCENE_DEPTH = 14.5;
 const SCENE_HEIGHT = 4.2;
 export const SCENE_FRAMELOOP_MODE = "demand";
 export const SCENE_PERFORMANCE_MODE = "idle-on-demand";
+export const SCENE_STYLE_PROFILE = "toy-office-chunky-warm";
+export const SCENE_STYLE_REFERENCE_MODE = "quaternius-inspired-safe-emulation";
 const FIT_SCRATCH = new Vector3();
 const DESK_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
   const [x, y, z] = slot.position;
@@ -212,8 +214,11 @@ export function AgentOfficeScene({
       data-scene-desk-structure-visual={DESK_STRUCTURE_VISUAL_MODE}
       data-scene-structural-opacity={STRUCTURAL_OPACITY_MODE}
       data-scene-overhead-sightline={OVERHEAD_SIGHTLINE_MODE}
+      data-scene-front-label-lane-clearance={FRONT_LABEL_LANE_CLEARANCE_MODE}
       data-scene-frameloop={SCENE_FRAMELOOP_MODE}
       data-scene-performance-mode={SCENE_PERFORMANCE_MODE}
+      data-scene-style-profile={SCENE_STYLE_PROFILE}
+      data-scene-style-reference={SCENE_STYLE_REFERENCE_MODE}
       data-runtime-status={summary?.captureStatus ?? "waiting"}
       data-scene-fit-status="pending"
       data-scene-label-fit-status="pending"
@@ -224,13 +229,14 @@ export function AgentOfficeScene({
         frameloop={SCENE_FRAMELOOP_MODE}
         camera={{ position: [0, 10.5, 14.8], fov: CAMERA_FOV, near: 0.1, far: 60 }}
       >
-        <color attach="background" args={["#0f1822"]} />
-        <fog attach="fog" args={["#0f1822", 22, 40]} />
+        <color attach="background" args={["#111a24"]} />
+        <fog attach="fog" args={["#111a24", 21, 38]} />
         <ResponsiveCameraRig />
-        <ambientLight intensity={1.18} />
-        <hemisphereLight args={["#f2e4c8", "#314557", 1.28]} />
-        <directionalLight position={[6, 13, 12]} intensity={1.32} color="#fff0d7" />
-        <directionalLight position={[-12, 9, 3]} intensity={0.72} color="#a9d9ff" />
+        <ambientLight intensity={1.28} />
+        <hemisphereLight args={["#fde5bb", "#3f5973", 1.38]} />
+        <directionalLight position={[6, 13, 12]} intensity={1.42} color="#ffe6be" />
+        <directionalLight position={[-12, 9, 3]} intensity={0.84} color="#93d0ff" />
+        <directionalLight position={[0, 7, -10]} intensity={0.36} color="#ffb580" />
         <OfficeShell summary={summary} />
         <DeskGrid
           agents={agents}
