@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { DESK_LABEL_ORIENTATION_MODE } from "../components/AgentDesk";
+import { STRUCTURAL_OPACITY_MODE } from "../components/OfficeProps";
 import { FIXED_WORKSTATION_SLOT_COUNT, FIXED_WORKSTATION_SLOTS, MAX_VISIBLE_TASK_BLOCKS } from "../config/workstationSlots";
 import { STATUS_VISUALS } from "../config/visualMapping";
 import { assignAgentsToFixedDesks, capVisibleTaskBlocks } from "./sceneState";
@@ -7,6 +9,11 @@ describe("sceneState", () => {
   it("defines exactly 12 fixed workstation slots", () => {
     expect(FIXED_WORKSTATION_SLOT_COUNT).toBe(12);
     expect(FIXED_WORKSTATION_SLOTS).toHaveLength(12);
+  });
+
+  it("keeps desk labels camera-facing and structural props opaque", () => {
+    expect(DESK_LABEL_ORIENTATION_MODE).toBe("camera-facing-yaw");
+    expect(STRUCTURAL_OPACITY_MODE).toBe("opaque");
   });
 
   it("caps visible task blocks", () => {

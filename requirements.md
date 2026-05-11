@@ -81,10 +81,15 @@ MVP requirements:
 - Do not use image-batch or state-image generation as the core rendering approach.
 - Optional static textures or image assets may be used later, but they are not the core rendering contract.
 - The scene layout must include exactly 12 fixed workstation/desk slots in MVP; desk count is not dynamic in this phase.
+- The 12 desks must be clustered more tightly than the initial horizontal prototype, with reduced spacing between workstations while still leaving readable aisle/lounge structure.
+- The production Realtime page must allocate the scene as the dominant horizontally-filling content area; `SceneStatusSummary` and related scene summary/status copy should sit above the 3D canvas instead of consuming a narrow right column that shrinks the scene.
+- Desk-scale content must be large enough to read at normal desktop viewport sizes: desks, monitors, labels, status lamps, and task stacks should be enlarged relative to the room/camera framing instead of appearing as tiny distant objects.
 - Final 3D styling direction must reference `clawobserver/static/assets/static_scene.jpg` and include both a work area and a rest/lounge area region.
 - The rest/lounge area may be visually simple in MVP, but it must exist as a reserved scene region for Phase 2 person/task/status expansion.
-- The MVP scene vocabulary is limited to: office shell, workstations/desks, monitors/screens, status lamps, task/file stacks, labels/nameplates, a global status board, and basic hover/click interactions.
+- The MVP scene vocabulary is limited to: office shell, workstations/desks, monitors/screens, status lamps, task/file stacks, labels/nameplates, a global status board, basic open-source/static office props, and basic hover/click interactions.
 - The production scene should more closely match the warmth, geometry, and human-friendly skeuomorphic office feel of `static_scene.jpg` while remaining lightweight and reliable.
+- If practical, the implementation should evaluate permissively licensed open-source 3D asset sources for low-poly desks, chairs, monitors, partitions, lounge furniture, plants, and office props. Any adopted asset must be repo-local, license-documented, deterministic/offline at runtime, and compatible with production bundling.
+- If no suitable asset can be safely adopted in this pass, the scene should still gain a documented asset-adoption seam and richer local low-poly prop components so future glTF/model replacement does not change the live data contract.
 - People, avatars, and agent-behavior animation are explicitly Phase 2 and out of MVP scope, but the scene contract must reserve extension points for them.
 
 Data contract requirements:

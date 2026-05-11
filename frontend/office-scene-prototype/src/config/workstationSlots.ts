@@ -3,8 +3,9 @@ import type { AgentDeskSlot } from "../agentVisualState";
 export const FIXED_WORKSTATION_SLOT_COUNT = 12;
 export const MAX_VISIBLE_TASK_BLOCKS = 4;
 
-const DESK_X_POSITIONS = [-7.2, -2.4, 2.4, 7.2];
-const DESK_Z_POSITIONS = [-3.9, 0.1, 4.1];
+const DESK_X_POSITIONS = [-6.15, -2.05, 2.05, 6.15];
+const DESK_Z_POSITIONS = [-2.95, 0.25, 3.35];
+const DESK_FACING_BY_ROW = [Math.PI, Math.PI, 0];
 
 export const FIXED_WORKSTATION_SLOTS: AgentDeskSlot[] = DESK_X_POSITIONS.flatMap((x, column) =>
   DESK_Z_POSITIONS.map((z, row) => ({
@@ -13,6 +14,7 @@ export const FIXED_WORKSTATION_SLOTS: AgentDeskSlot[] = DESK_X_POSITIONS.flatMap
     row,
     column,
     position: [x, 0, z] as [number, number, number],
+    facing: DESK_FACING_BY_ROW[row],
   })),
 );
 

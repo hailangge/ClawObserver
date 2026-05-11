@@ -3,8 +3,10 @@ import { useEffect } from "react";
 import { MathUtils, Vector3 } from "three";
 import type { AgentVisualState, SceneSummary } from "../agentVisualState";
 import { FIXED_WORKSTATION_SLOTS } from "../config/workstationSlots";
+import { DESK_LABEL_ORIENTATION_MODE } from "./AgentDesk";
 import { DeskGrid } from "./DeskGrid";
 import { GlobalStatusBoard } from "./GlobalStatusBoard";
+import { STRUCTURAL_OPACITY_MODE } from "./OfficeProps";
 import { OfficeShell } from "./OfficeShell";
 
 type AgentOfficeSceneProps = {
@@ -17,19 +19,19 @@ type AgentOfficeSceneProps = {
 };
 
 const CAMERA_TARGET = new Vector3(0, 0.95, 0.5);
-const CAMERA_PITCH = MathUtils.degToRad(36);
-const CAMERA_FOV = 42;
-const SCENE_WIDTH = 21;
-const SCENE_DEPTH = 17;
+const CAMERA_PITCH = MathUtils.degToRad(34);
+const CAMERA_FOV = 40;
+const SCENE_WIDTH = 17.5;
+const SCENE_DEPTH = 14.5;
 const SCENE_HEIGHT = 4.2;
 const FIT_SCRATCH = new Vector3();
 const DESK_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
   const [x, y, z] = slot.position;
   return [
-    [x - 1.45, y + 0.1, z - 0.9],
-    [x + 1.45, y + 0.1, z - 0.9],
-    [x - 1.45, y + 1.8, z + 0.95],
-    [x + 1.45, y + 1.8, z + 0.95],
+    [x - 1.78, y + 0.14, z - 1.1],
+    [x + 1.78, y + 0.14, z - 1.1],
+    [x - 1.78, y + 2.28, z + 1.18],
+    [x + 1.78, y + 2.28, z + 1.18],
   ] as const;
 });
 
@@ -93,10 +95,10 @@ function ResponsiveCameraRig() {
     const aspect = size.width / Math.max(size.height, 1);
     const verticalFov = MathUtils.degToRad(CAMERA_FOV);
     const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
-    const effectiveHeight = SCENE_HEIGHT + SCENE_DEPTH * Math.sin(CAMERA_PITCH) * 0.78;
-    const widthDistance = (SCENE_WIDTH * 0.58) / Math.tan(horizontalFov / 2);
-    const heightDistance = (effectiveHeight * 0.6) / Math.tan(verticalFov / 2);
-    const distance = Math.max(widthDistance, heightDistance, 16.2);
+    const effectiveHeight = SCENE_HEIGHT + SCENE_DEPTH * Math.sin(CAMERA_PITCH) * 0.74;
+    const widthDistance = (SCENE_WIDTH * 0.62) / Math.tan(horizontalFov / 2);
+    const heightDistance = (effectiveHeight * 0.58) / Math.tan(verticalFov / 2);
+    const distance = Math.max(widthDistance, heightDistance, 13.9);
 
     camera.fov = CAMERA_FOV;
     camera.near = 0.1;
@@ -136,17 +138,20 @@ export function AgentOfficeScene({
       data-scene-desk-count="12"
       data-scene-has-status-board="true"
       data-scene-has-lounge="true"
+      data-scene-asset-strategy="local-low-poly-seam"
+      data-scene-label-orientation={DESK_LABEL_ORIENTATION_MODE}
+      data-scene-structural-opacity={STRUCTURAL_OPACITY_MODE}
       data-runtime-status={summary?.captureStatus ?? "waiting"}
       data-scene-fit-status="pending"
     >
-      <Canvas shadows={false} dpr={[1, 1.5]} camera={{ position: [0, 12, 17], fov: CAMERA_FOV, near: 0.1, far: 60 }}>
+      <Canvas shadows={false} dpr={[1, 1.5]} camera={{ position: [0, 10.5, 14.8], fov: CAMERA_FOV, near: 0.1, far: 60 }}>
         <color attach="background" args={["#0f1822"]} />
         <fog attach="fog" args={["#0f1822", 22, 40]} />
         <ResponsiveCameraRig />
-        <ambientLight intensity={1.12} />
-        <hemisphereLight args={["#f2e4c8", "#314557", 1.22]} />
-        <directionalLight position={[6, 13, 12]} intensity={1.28} color="#fff0d7" />
-        <directionalLight position={[-12, 9, 3]} intensity={0.66} color="#a9d9ff" />
+        <ambientLight intensity={1.18} />
+        <hemisphereLight args={["#f2e4c8", "#314557", 1.28]} />
+        <directionalLight position={[6, 13, 12]} intensity={1.32} color="#fff0d7" />
+        <directionalLight position={[-12, 9, 3]} intensity={0.72} color="#a9d9ff" />
         <OfficeShell summary={summary} />
         <DeskGrid
           agents={agents}

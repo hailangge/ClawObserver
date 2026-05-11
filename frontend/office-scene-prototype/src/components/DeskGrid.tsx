@@ -28,6 +28,7 @@ export function DeskGrid({
           <AgentDesk
             key={slot.id}
             position={slot.position}
+            facing={slot.facing ?? 0}
             label={slot.label}
             agent={assignment.agent}
             hovered={hoveredAgentId === assignment.agent?.id}

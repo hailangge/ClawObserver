@@ -64,7 +64,17 @@ export function RealtimeOfficeSceneApp({
           {backLinkHref && backLinkLabel ? <a href={backLinkHref}>{backLinkLabel}</a> : null}
         </div>
       </header>
-      <section className="prototype-layout">
+      <section className="prototype-layout prototype-layout--stacked">
+        <div className="scene-top-stack">
+          <SceneStatusSummary summary={summary} variant="wide" />
+          <div className="realtime-detail-strip">
+            <AgentDetailPanel
+              agent={selectedAgent}
+              title={summaryTitle ?? "Selected agent"}
+              emptyMessage={emptyDetailMessage ?? "Select a desk to inspect the current renderer-facing state."}
+            />
+          </div>
+        </div>
         <section className="scene-panel">
           <div className="scene-canvas-panel">
             <AgentOfficeScene
@@ -83,8 +93,7 @@ export function RealtimeOfficeSceneApp({
             {footerNote ? <span>{footerNote}</span> : null}
           </footer>
         </section>
-        <div className="realtime-side-stack">
-          <SceneStatusSummary summary={summary} />
+        <div className="realtime-detail-mobile">
           <AgentDetailPanel
             agent={selectedAgent}
             title={summaryTitle ?? "Selected agent"}

@@ -16,6 +16,10 @@ const MIN_MID_VARIANCE_PIXELS = 22000;
 const MIN_UNIQUE_BUCKETS = 150;
 const MAX_DOMINANT_BUCKET_RATIO = 0.72;
 const MIN_LUMA_SPREAD = 90;
+const MIN_SCENE_CANVAS_WIDTH = 980;
+const MIN_SCENE_CANVAS_HEIGHT = 640;
+const MIN_SUMMARY_WIDTH_RATIO = 0.72;
+const MIN_SCENE_FIT_MARGIN = 0.02;
 const REQUIRED_DESK_COUNT = 12;
 
 function resolveBrowserExecutable() {
@@ -342,6 +346,8 @@ function assertSharedSceneQuality(result) {
     result.sceneMetrics.declaredDeskCount !== REQUIRED_DESK_COUNT ||
     !result.sceneMetrics.declaredStatusBoard ||
     !result.sceneMetrics.declaredLounge ||
+    result.sceneMetrics.labelOrientation !== "camera-facing-yaw" ||
+    result.sceneMetrics.structuralOpacity !== "opaque" ||
     result.screenshotMetrics.brightPixels < MIN_BRIGHT_PIXELS ||
     result.screenshotMetrics.darkPixels < MIN_DARK_PIXELS ||
     result.screenshotMetrics.midVariancePixels < MIN_MID_VARIANCE_PIXELS ||
@@ -382,6 +388,8 @@ async function validatePrototype(page, prototypeUrl, screenshotPath) {
         declaredDeskCount: Number(sceneRoot?.getAttribute("data-scene-desk-count") ?? "0"),
         declaredStatusBoard: sceneRoot?.getAttribute("data-scene-has-status-board") === "true",
         declaredLounge: sceneRoot?.getAttribute("data-scene-has-lounge") === "true",
+        labelOrientation: sceneRoot?.getAttribute("data-scene-label-orientation") ?? null,
+        structuralOpacity: sceneRoot?.getAttribute("data-scene-structural-opacity") ?? null,
         statusBoardText: statusBoard?.textContent ?? "",
         sceneFitStatus: sceneRoot?.getAttribute("data-scene-fit-status") ?? null,
         sceneFitLeft: Number(sceneRoot?.getAttribute("data-scene-fit-left") ?? "0"),
@@ -423,6 +431,9 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
       const rect = canvas?.getBoundingClientRect();
       const mount = document.getElementById("realtime-r3f-scene-mount");
       const statusBoard = document.querySelector("[data-status-board]");
+      const summaryPanel = document.querySelector("[data-summary-panel]");
+      const detailPanel = document.querySelector("[data-detail-state='empty'], [data-detail-state='selected']");
+      const canvasPanel = document.querySelector(".scene-canvas-panel");
       const detailState = document.querySelector("[data-detail-state]")?.getAttribute("data-detail-state") ?? null;
       const summaryRuntime = document.querySelector("[data-summary-runtime-reason]")?.textContent ?? null;
       const summaryQueue = document.querySelector("[data-summary-queue]")?.textContent ?? null;
@@ -435,6 +446,9 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
       const deskLabels = Array.from(document.querySelectorAll("[data-hover-card], .detail-panel h2"))
         .map((node) => node.textContent ?? "")
         .join(" ");
+      const summaryRect = summaryPanel?.getBoundingClientRect();
+      const detailRect = detailPanel?.getBoundingClientRect();
+      const canvasPanelRect = canvasPanel?.getBoundingClientRect();
 
       return {
         mountPresent: Boolean(mount),
@@ -454,10 +468,20 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
         declaredDeskCount: Number(sceneRoot?.getAttribute("data-scene-desk-count") ?? "0"),
         declaredStatusBoard: sceneRoot?.getAttribute("data-scene-has-status-board") === "true",
         declaredLounge: sceneRoot?.getAttribute("data-scene-has-lounge") === "true",
+        labelOrientation: sceneRoot?.getAttribute("data-scene-label-orientation") ?? null,
+        structuralOpacity: sceneRoot?.getAttribute("data-scene-structural-opacity") ?? null,
+        assetStrategy: sceneRoot?.getAttribute("data-scene-asset-strategy") ?? null,
         runtimeStatus: sceneRoot?.getAttribute("data-runtime-status") ?? null,
         statusBoardRuntime: statusBoard?.getAttribute("data-runtime-status") ?? null,
         hoveredCardPresent: Boolean(hoveredCard),
         deskLabels,
+        summaryVariant: summaryPanel?.getAttribute("data-summary-variant") ?? null,
+        summaryTop: summaryRect?.top ?? 0,
+        summaryBottom: summaryRect?.bottom ?? 0,
+        summaryWidth: summaryRect?.width ?? 0,
+        detailTop: detailRect?.top ?? 0,
+        canvasTop: canvasPanelRect?.top ?? 0,
+        canvasPanelWidth: canvasPanelRect?.width ?? 0,
         sceneFitStatus: sceneRoot?.getAttribute("data-scene-fit-status") ?? null,
         sceneFitLeft: Number(sceneRoot?.getAttribute("data-scene-fit-left") ?? "0"),
         sceneFitRight: Number(sceneRoot?.getAttribute("data-scene-fit-right") ?? "0"),
@@ -481,7 +505,19 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
     !String(result.sceneMetrics.summaryRuntime).trim() ||
     !String(result.sceneMetrics.summaryQueue).includes("pending") ||
     !String(result.sceneMetrics.summarySessions).includes("active") ||
-    !String(result.sceneMetrics.footerText).includes("Fixed desks: 12")
+    !String(result.sceneMetrics.footerText).includes("Fixed desks: 12") ||
+    result.sceneMetrics.canvasWidth < MIN_SCENE_CANVAS_WIDTH ||
+    result.sceneMetrics.canvasHeight < MIN_SCENE_CANVAS_HEIGHT ||
+    result.sceneMetrics.summaryVariant !== "wide" ||
+    result.sceneMetrics.summaryBottom > result.sceneMetrics.canvasTop ||
+    result.sceneMetrics.summaryWidth < result.sceneMetrics.canvasPanelWidth * MIN_SUMMARY_WIDTH_RATIO ||
+    result.sceneMetrics.detailTop > result.sceneMetrics.canvasTop ||
+    result.sceneMetrics.assetStrategy !== "local-low-poly-seam" ||
+    result.sceneMetrics.sceneFitStatus !== "fit" ||
+    result.sceneMetrics.sceneFitLeft < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneFitRight < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneFitTop < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneFitBottom < MIN_SCENE_FIT_MARGIN
   ) {
     throw new Error(JSON.stringify(result, null, 2));
   }

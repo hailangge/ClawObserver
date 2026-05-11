@@ -2,6 +2,7 @@ import type { SceneSummary } from "../agentVisualState";
 
 type SceneStatusSummaryProps = {
   summary: SceneSummary | null;
+  variant?: "default" | "wide";
 };
 
 function formatRuntimeLabel(summary: SceneSummary | null): string {
@@ -20,9 +21,14 @@ function formatRuntimeLabel(summary: SceneSummary | null): string {
   return "Live runtime";
 }
 
-export function SceneStatusSummary({ summary }: SceneStatusSummaryProps) {
+export function SceneStatusSummary({ summary, variant = "default" }: SceneStatusSummaryProps) {
   return (
-    <section className="detail-panel realtime-summary" data-summary-panel data-runtime-status={summary?.captureStatus ?? "waiting"}>
+    <section
+      className={`detail-panel realtime-summary${variant === "wide" ? " realtime-summary--wide" : ""}`}
+      data-summary-panel
+      data-summary-variant={variant}
+      data-runtime-status={summary?.captureStatus ?? "waiting"}
+    >
       <h2>Scene summary</h2>
       <p>{formatRuntimeLabel(summary)}</p>
       <dl>

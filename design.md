@@ -240,10 +240,14 @@ Scene MVP behavior:
 - MVP is desktop-only.
 - MVP omits shadows and complex UI/rendering effects.
 - MVP uses exactly 12 fixed workstation/desk slots; slot count is fixed by config in this phase.
+- The desk grid should be compact rather than overly horizontal: reduce inter-desk gaps, use a denser 4x3 or equivalent cluster, and tune camera/framing around readability rather than preserving the old wide spread.
+- The production Realtime layout should make the 3D scene horizontally fill the main dashboard card. Scene summary/status information belongs above the canvas in ordinary HTML so it does not squeeze the WebGL region into a narrow composition.
+- Desk-scale objects should be visibly larger: enlarge desk/table geometry, monitor screens, labels/nameplates, status lamps, and task stacks relative to the room and camera so text/status information can be inspected without zooming.
 - Visual layout and style should be aligned to `clawobserver/static/assets/static_scene.jpg`, covering both the work area and a reserved rest/lounge area.
 - The visual treatment should push closer to the reference image's warmer, friendlier, lightly skeuomorphic office feel while keeping geometry and materials inexpensive to render.
 - The rest/lounge area can be simple in MVP but must remain a distinct reserved region for Phase 2 person/task/status expansion.
-- The MVP object vocabulary is limited to office shell, desks/workstations, monitors, status lamps, capped task/file stacks, labels/nameplates, and a global status board.
+- The MVP object vocabulary is limited to office shell, desks/workstations, monitors, status lamps, capped task/file stacks, labels/nameplates, a global status board, and simple low-poly office props.
+- Evaluate permissively licensed open-source 3D asset libraries for office furniture/props when practical. Imported assets must be small, license-documented, repo-local, and runtime-offline; otherwise implement a clear local `OfficeProps`/asset seam using richer primitive low-poly components.
 - Interactions are limited to hover highlight/name and click selection/detail panel.
 
 ## 6.2 Realtime scene architecture

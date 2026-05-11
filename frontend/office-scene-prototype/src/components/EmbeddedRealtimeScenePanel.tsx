@@ -30,7 +30,17 @@ export function EmbeddedRealtimeScenePanel({ agents, summary }: EmbeddedRealtime
 
   return (
     <div className="scene-board" data-embedded-realtime-scene>
-      <div className="scene-layout">
+      <div className="scene-layout scene-layout--stacked">
+        <div className="scene-top-stack">
+          <SceneStatusSummary summary={summary} variant="wide" />
+          <div className="realtime-detail-strip">
+            <AgentDetailPanel
+              agent={selectedAgent}
+              title="Selected desk"
+              emptyMessage="Select a desk to inspect the current live task, session, and model details."
+            />
+          </div>
+        </div>
         <section className="scene-panel">
           <div className="scene-canvas-panel">
             <AgentOfficeScene
@@ -53,8 +63,7 @@ export function EmbeddedRealtimeScenePanel({ agents, summary }: EmbeddedRealtime
             </span>
           </footer>
         </section>
-        <div className="realtime-side-stack">
-          <SceneStatusSummary summary={summary} />
+        <div className="realtime-detail-mobile">
           <AgentDetailPanel
             agent={selectedAgent}
             title="Selected desk"

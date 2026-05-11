@@ -49,6 +49,7 @@ export type AgentDeskSlot = {
   row: number;
   column: number;
   position: [number, number, number];
+  facing?: number;
 };
 
 export type SceneSelectionState = {

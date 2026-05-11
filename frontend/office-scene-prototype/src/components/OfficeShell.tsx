@@ -1,15 +1,8 @@
 import type { SceneSummary } from "../agentVisualState";
+import { OfficeProps } from "./OfficeProps";
 
 const loungeSeatPositions = [-3.65, -1.2, 1.2, 3.65];
 const loungeTablePositions = [-2.7, 0, 2.7];
-const planterPositions = [
-  [-9, 0.55, -6.15],
-  [9, 0.55, -6.15],
-  [-8.65, 0.55, 5.85],
-  [8.65, 0.55, 5.85],
-] as const;
-const dividerPositions = [-5.1, 0, 5.1];
-
 type OfficeShellProps = {
   summary: SceneSummary | null;
 };
@@ -34,27 +27,27 @@ export function OfficeShell({ summary }: OfficeShellProps) {
       </mesh>
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, -0.2]}>
-        <planeGeometry args={[18.2, 11.6]} />
-        <meshStandardMaterial color="#55697a" roughness={0.9} />
+        <planeGeometry args={[16.9, 10.1]} />
+        <meshStandardMaterial color="#596e80" roughness={0.88} />
       </mesh>
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 6.25]}>
-        <planeGeometry args={[18.2, 4.6]} />
+        <planeGeometry args={[17.2, 4.15]} />
         <meshStandardMaterial color="#c28f63" roughness={0.9} />
       </mesh>
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 3.95]}>
-        <planeGeometry args={[18.2, 0.16]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 4.18]}>
+        <planeGeometry args={[17.2, 0.2]} />
         <meshStandardMaterial color="#e0d6c7" roughness={0.66} />
       </mesh>
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.021, -3.95]}>
-        <planeGeometry args={[18.2, 0.12]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.021, -3.48]}>
+        <planeGeometry args={[16.9, 0.16]} />
         <meshStandardMaterial color="#d3c7b8" roughness={0.72} />
       </mesh>
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.018, 0]}>
-        <ringGeometry args={[2.8, 3.2, 28]} />
+        <ringGeometry args={[2.35, 2.75, 28]} />
         <meshStandardMaterial color="#697e8f" roughness={0.84} transparent opacity={0.32} />
       </mesh>
 
@@ -98,32 +91,6 @@ export function OfficeShell({ summary }: OfficeShellProps) {
         </group>
       ))}
 
-      {dividerPositions.map((x) => (
-        <group key={`divider-${x}`} position={[x, 1.04, 5.45]}>
-          <mesh>
-            <boxGeometry args={[0.12, 1.7, 2.5]} />
-            <meshStandardMaterial color="#d7ddd9" roughness={0.9} transparent opacity={0.72} />
-          </mesh>
-          <mesh position={[0, 0.9, 0]}>
-            <boxGeometry args={[0.16, 0.12, 2.6]} />
-            <meshStandardMaterial color="#93a4b0" roughness={0.78} />
-          </mesh>
-        </group>
-      ))}
-
-      {planterPositions.map(([x, y, z]) => (
-        <group key={`planter-${x}-${z}`} position={[x, y, z]}>
-          <mesh>
-            <boxGeometry args={[0.9, 0.5, 0.9]} />
-            <meshStandardMaterial color="#8d694d" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, 0.6, 0]}>
-            <sphereGeometry args={[0.46, 16, 16]} />
-            <meshStandardMaterial color="#6da46d" roughness={0.94} />
-          </mesh>
-        </group>
-      ))}
-
       <mesh position={[0, 0.25, 6.15]}>
         <boxGeometry args={[9.6, 0.32, 3.2]} />
         <meshStandardMaterial color="#ba835a" roughness={0.95} />
@@ -156,20 +123,7 @@ export function OfficeShell({ summary }: OfficeShellProps) {
           </mesh>
           <mesh position={[0, -0.18, 0.66]}>
             <boxGeometry args={[1.7, 0.08, 0.28]} />
-            <meshStandardMaterial color="#8bb7d6" roughness={0.84} transparent opacity={0.72} />
-          </mesh>
-        </group>
-      ))}
-
-      {[-5.95, 0, 5.95].map((x) => (
-        <group key={`whiteboard-${x}`} position={[x, 1.55, -6.75]}>
-          <mesh>
-            <boxGeometry args={[2.3, 1.35, 0.08]} />
-            <meshStandardMaterial color="#f1eee8" roughness={0.82} />
-          </mesh>
-          <mesh position={[0, 0, 0.05]}>
-            <planeGeometry args={[1.94, 1]} />
-            <meshStandardMaterial color="#f8f5ef" roughness={0.76} />
+            <meshStandardMaterial color="#8bb7d6" roughness={0.84} />
           </mesh>
         </group>
       ))}
@@ -189,28 +143,6 @@ export function OfficeShell({ summary }: OfficeShellProps) {
         <meshStandardMaterial color="#d4b88b" roughness={0.75} />
       </mesh>
 
-      <mesh position={[7.5, 1.4, -5.9]}>
-        <boxGeometry args={[2.8, 1.1, 0.24]} />
-        <meshStandardMaterial color="#815f45" roughness={0.92} />
-      </mesh>
-
-      <mesh position={[7.5, 2.25, -5.84]}>
-        <boxGeometry args={[2.1, 0.52, 0.06]} />
-        <meshStandardMaterial color="#f4e8d8" roughness={0.86} />
-      </mesh>
-
-      <mesh position={[7.56, 1.42, -5.72]}>
-        <boxGeometry args={[1.86, 0.08, 0.36]} />
-        <meshStandardMaterial color="#c39e73" roughness={0.82} />
-      </mesh>
-
-      {[-0.52, 0, 0.52].map((x) => (
-        <mesh key={`book-${x}`} position={[7.12 + x, 1.65 + Math.abs(x) * 0.06, -5.7]}>
-          <boxGeometry args={[0.28, 0.16, 0.46]} />
-          <meshStandardMaterial color={x === 0 ? "#4f7ea3" : "#d39d68"} roughness={0.8} />
-        </mesh>
-      ))}
-
       <mesh position={[0, 1.9, 6.1]}>
         <boxGeometry args={[0.18, 2.2, 0.18]} />
         <meshStandardMaterial color="#8a98a5" roughness={0.7} />
@@ -220,6 +152,8 @@ export function OfficeShell({ summary }: OfficeShellProps) {
         <sphereGeometry args={[0.22, 18, 18]} />
         <meshStandardMaterial color={loungeLampColor} emissive={loungeLampColor} emissiveIntensity={0.75} />
       </mesh>
+
+      <OfficeProps compactMode />
     </group>
   );
 }
