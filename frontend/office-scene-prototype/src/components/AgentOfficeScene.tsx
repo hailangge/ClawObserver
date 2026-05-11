@@ -3,11 +3,21 @@ import { useEffect } from "react";
 import { MathUtils, Vector3 } from "three";
 import type { AgentVisualState, SceneSummary } from "../agentVisualState";
 import { FIXED_WORKSTATION_SLOTS } from "../config/workstationSlots";
-import { DESK_LABEL_ORIENTATION_MODE } from "./AgentDesk";
+import {
+  DESK_LABEL_ELEVATION,
+  DESK_LABEL_FORWARD_OFFSET,
+  DESK_LABEL_HEIGHT,
+  DESK_LABEL_LAYER_MODE,
+  DESK_LABEL_ORIENTATION_MODE,
+  DESK_LABEL_PLATE_MODE,
+  DESK_LABEL_WIDTH,
+  DESK_STRUCTURE_VISUAL_MODE,
+} from "./AgentDesk";
+import { OFFICE_ASSET_LICENSE_PATH, OFFICE_ASSET_MODEL_COUNT, OFFICE_ASSET_PROVENANCE_PATH, OFFICE_ASSET_SOURCE, OFFICE_ASSET_STRATEGY } from "../data/officeAssetCatalog";
 import { DeskGrid } from "./DeskGrid";
 import { GlobalStatusBoard } from "./GlobalStatusBoard";
 import { STRUCTURAL_OPACITY_MODE } from "./OfficeProps";
-import { OfficeShell } from "./OfficeShell";
+import { OfficeShell, OVERHEAD_SIGHTLINE_MODE } from "./OfficeShell";
 
 type AgentOfficeSceneProps = {
   agents: AgentVisualState[];
@@ -24,6 +34,8 @@ const CAMERA_FOV = 40;
 const SCENE_WIDTH = 17.5;
 const SCENE_DEPTH = 14.5;
 const SCENE_HEIGHT = 4.2;
+export const SCENE_FRAMELOOP_MODE = "demand";
+export const SCENE_PERFORMANCE_MODE = "idle-on-demand";
 const FIT_SCRATCH = new Vector3();
 const DESK_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
   const [x, y, z] = slot.position;
@@ -32,6 +44,15 @@ const DESK_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
     [x + 1.78, y + 0.14, z - 1.1],
     [x - 1.78, y + 2.28, z + 1.18],
     [x + 1.78, y + 2.28, z + 1.18],
+  ] as const;
+});
+const LABEL_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
+  const [x, y, z] = slot.position;
+  return [
+    [x - DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION + DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
+    [x + DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION + DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
+    [x - DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION - DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
+    [x + DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION - DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
   ] as const;
 });
 
@@ -77,9 +98,48 @@ function writeSceneFitMetrics(sceneRoot: HTMLDivElement, camera: { project?: unk
   sceneRoot.dataset.sceneFitPointCount = String(DESK_SAMPLE_POINTS.length);
 }
 
+function writeProjectedMargins(
+  sceneRoot: HTMLDivElement,
+  camera: { project?: unknown } & {
+    updateMatrixWorld: () => void;
+    position: { set: (x: number, y: number, z: number) => void };
+    lookAt: (target: Vector3) => void;
+    updateProjectionMatrix: () => void;
+    fov: number;
+    near: number;
+    far: number;
+  },
+  samplePoints: readonly (readonly [number, number, number])[],
+  prefix: string,
+) {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const [x, y, z] of samplePoints) {
+    FIT_SCRATCH.set(x, y, z).project(camera);
+    const projectedX = (FIT_SCRATCH.x + 1) / 2;
+    const projectedY = (1 - FIT_SCRATCH.y) / 2;
+    minX = Math.min(minX, projectedX);
+    maxX = Math.max(maxX, projectedX);
+    minY = Math.min(minY, projectedY);
+    maxY = Math.max(maxY, projectedY);
+  }
+
+  sceneRoot.dataset[`${prefix}FitStatus`] =
+    minX >= 0 && maxX <= 1 && minY >= 0 && maxY <= 1 ? "fit" : "overflow";
+  sceneRoot.dataset[`${prefix}FitLeft`] = minX.toFixed(3);
+  sceneRoot.dataset[`${prefix}FitRight`] = (1 - maxX).toFixed(3);
+  sceneRoot.dataset[`${prefix}FitTop`] = minY.toFixed(3);
+  sceneRoot.dataset[`${prefix}FitBottom`] = (1 - maxY).toFixed(3);
+  sceneRoot.dataset[`${prefix}FitPointCount`] = String(samplePoints.length);
+}
+
 function ResponsiveCameraRig() {
   const camera = useThree((state) => state.camera);
   const canvas = useThree((state) => state.gl.domElement);
+  const invalidate = useThree((state) => state.invalidate);
   const size = useThree((state) => state.size);
 
   useEffect(() => {
@@ -98,7 +158,7 @@ function ResponsiveCameraRig() {
     const effectiveHeight = SCENE_HEIGHT + SCENE_DEPTH * Math.sin(CAMERA_PITCH) * 0.74;
     const widthDistance = (SCENE_WIDTH * 0.62) / Math.tan(horizontalFov / 2);
     const heightDistance = (effectiveHeight * 0.58) / Math.tan(verticalFov / 2);
-    const distance = Math.max(widthDistance, heightDistance, 13.9);
+    const distance = Math.max(widthDistance, heightDistance, 14.15);
 
     camera.fov = CAMERA_FOV;
     camera.near = 0.1;
@@ -117,8 +177,11 @@ function ResponsiveCameraRig() {
       sceneRoot.dataset.sceneCameraDistance = distance.toFixed(3);
       sceneRoot.dataset.sceneCameraAspect = aspect.toFixed(3);
       writeSceneFitMetrics(sceneRoot, camera);
+      writeProjectedMargins(sceneRoot, camera, LABEL_SAMPLE_POINTS, "sceneLabel");
     }
-  }, [camera, canvas, size.height, size.width]);
+
+    invalidate();
+  }, [camera, canvas, invalidate, size.height, size.width]);
 
   return null;
 }
@@ -138,13 +201,29 @@ export function AgentOfficeScene({
       data-scene-desk-count="12"
       data-scene-has-status-board="true"
       data-scene-has-lounge="true"
-      data-scene-asset-strategy="local-low-poly-seam"
+      data-scene-asset-strategy={OFFICE_ASSET_STRATEGY}
+      data-scene-asset-source={OFFICE_ASSET_SOURCE}
+      data-scene-office-asset-model-count={String(OFFICE_ASSET_MODEL_COUNT)}
+      data-scene-license-path={OFFICE_ASSET_LICENSE_PATH}
+      data-scene-provenance-path={OFFICE_ASSET_PROVENANCE_PATH}
       data-scene-label-orientation={DESK_LABEL_ORIENTATION_MODE}
+      data-scene-label-layer={DESK_LABEL_LAYER_MODE}
+      data-scene-label-plate={DESK_LABEL_PLATE_MODE}
+      data-scene-desk-structure-visual={DESK_STRUCTURE_VISUAL_MODE}
       data-scene-structural-opacity={STRUCTURAL_OPACITY_MODE}
+      data-scene-overhead-sightline={OVERHEAD_SIGHTLINE_MODE}
+      data-scene-frameloop={SCENE_FRAMELOOP_MODE}
+      data-scene-performance-mode={SCENE_PERFORMANCE_MODE}
       data-runtime-status={summary?.captureStatus ?? "waiting"}
       data-scene-fit-status="pending"
+      data-scene-label-fit-status="pending"
     >
-      <Canvas shadows={false} dpr={[1, 1.5]} camera={{ position: [0, 10.5, 14.8], fov: CAMERA_FOV, near: 0.1, far: 60 }}>
+      <Canvas
+        shadows={false}
+        dpr={[1, 1.5]}
+        frameloop={SCENE_FRAMELOOP_MODE}
+        camera={{ position: [0, 10.5, 14.8], fov: CAMERA_FOV, near: 0.1, far: 60 }}
+      >
         <color attach="background" args={["#0f1822"]} />
         <fog attach="fog" args={["#0f1822", 22, 40]} />
         <ResponsiveCameraRig />

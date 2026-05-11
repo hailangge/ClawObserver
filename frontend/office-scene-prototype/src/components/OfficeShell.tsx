@@ -2,7 +2,7 @@ import type { SceneSummary } from "../agentVisualState";
 import { OfficeProps } from "./OfficeProps";
 
 const loungeSeatPositions = [-3.65, -1.2, 1.2, 3.65];
-const loungeTablePositions = [-2.7, 0, 2.7];
+export const OVERHEAD_SIGHTLINE_MODE = "clear-back-row";
 type OfficeShellProps = {
   summary: SceneSummary | null;
 };
@@ -20,7 +20,7 @@ export function OfficeShell({ summary }: OfficeShellProps) {
   const boardGlow = runtimeStatus === "error" ? "#a82c34" : runtimeStatus === "waiting" ? "#314150" : "#1d4f86";
 
   return (
-    <group userData={{ sceneRole: "office-shell", hasLounge: true }}>
+    <group userData={{ sceneRole: "office-shell", hasLounge: true, overheadSightline: OVERHEAD_SIGHTLINE_MODE }}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, 0]}>
         <planeGeometry args={[24, 20]} />
         <meshStandardMaterial color="#111a21" roughness={0.98} />
@@ -66,15 +66,15 @@ export function OfficeShell({ summary }: OfficeShellProps) {
         <meshStandardMaterial color="#a29380" roughness={0.88} />
       </mesh>
 
-      <mesh position={[0, 3.02, -5.45]}>
-        <boxGeometry args={[11.4, 0.08, 1.15]} />
-        <meshStandardMaterial color="#f5ead8" emissive="#f3ddb0" emissiveIntensity={0.24} />
+      <mesh position={[0, 3.08, -6.62]}>
+        <boxGeometry args={[10.2, 0.06, 0.34]} />
+        <meshStandardMaterial color="#eadfcd" roughness={0.76} emissive="#f0dfbe" emissiveIntensity={0.12} />
       </mesh>
 
       {[-8.2, -4.1, 0, 4.1, 8.2].map((x) => (
-        <mesh key={`soffit-${x}`} position={[x, 2.84, -1.05]}>
-          <boxGeometry args={[2.2, 0.12, 1.65]} />
-          <meshStandardMaterial color="#eadfcd" roughness={0.78} emissive="#f0dfbe" emissiveIntensity={0.08} />
+        <mesh key={`soffit-${x}`} position={[x, 3.06, -2.38]}>
+          <boxGeometry args={[1.72, 0.08, 0.52]} />
+          <meshStandardMaterial color="#eadfcd" roughness={0.8} emissive="#f0dfbe" emissiveIntensity={0.06} />
         </mesh>
       ))}
 
@@ -95,21 +95,6 @@ export function OfficeShell({ summary }: OfficeShellProps) {
         <boxGeometry args={[9.6, 0.32, 3.2]} />
         <meshStandardMaterial color="#ba835a" roughness={0.95} />
       </mesh>
-
-      {loungeTablePositions.map((x) => (
-        <group key={`table-${x}`} position={[x, 0.78, 6.1]}>
-          <mesh>
-            <boxGeometry args={[2.1, 0.18, 0.94]} />
-            <meshStandardMaterial color="#718aa0" roughness={0.8} />
-          </mesh>
-          {[-0.78, 0.78].map((legX) => (
-            <mesh key={legX} position={[legX, -0.4, 0]}>
-              <boxGeometry args={[0.12, 0.76, 0.12]} />
-              <meshStandardMaterial color="#607384" roughness={0.78} />
-            </mesh>
-          ))}
-        </group>
-      ))}
 
       {loungeSeatPositions.map((x) => (
         <group key={`seat-${x}`} position={[x, 0.52, 7.18]}>

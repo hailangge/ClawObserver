@@ -224,13 +224,15 @@ The built files are emitted to `clawobserver/static/prototype/`, which is served
 
 ### Office assets
 
-This pass evaluated permissive third-party office assets but did not import any 3D files. The decision and source review are documented in `frontend/office-scene-prototype/src/data/office-assets.md`.
+This pass imports a curated repo-local subset of Kenney `Furniture Kit` office assets. The exact source review, imported file list, and checksums are documented in `frontend/office-scene-prototype/src/data/office-assets.md` plus `frontend/office-scene-prototype/public/office-assets/kenney/provenance.json`.
 
 Current strategy:
 
-- richer office props are local low-poly components behind `frontend/office-scene-prototype/src/components/OfficeProps.tsx`
-- runtime remains offline and deterministic
-- future glTF or other repo-local asset swaps should happen behind that seam without changing the live `AgentVisualState[]` contract
+- imported office/furniture models are repo-local `OBJ/MTL` files under `frontend/office-scene-prototype/public/office-assets/kenney/`
+- the scene prefers Kenney-backed desks, chairs, monitor gear, plants, lounge tables, and bookcases, but keeps primitive fallbacks behind the same component seam
+- runtime remains offline and deterministic after initial local static asset delivery
+- the stable live `AgentVisualState[]` contract remains unchanged
+- exact license text is shipped at `frontend/office-scene-prototype/public/office-assets/kenney/licenses/Kenney-Furniture-Kit-CC0.txt`
 
 The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI adapter. It:
 

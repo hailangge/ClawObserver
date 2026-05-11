@@ -19,8 +19,25 @@ const MIN_LUMA_SPREAD = 90;
 const MIN_SCENE_CANVAS_WIDTH = 980;
 const MIN_SCENE_CANVAS_HEIGHT = 640;
 const MIN_SUMMARY_WIDTH_RATIO = 0.72;
-const MIN_SCENE_FIT_MARGIN = 0.02;
+const MIN_SCENE_FIT_MARGIN = 0.018;
+const MIN_LABEL_FIT_MARGIN = 0.03;
 const REQUIRED_DESK_COUNT = 12;
+const MAX_IDLE_ANIMATION_FRAMES = 8;
+const REQUIRED_LABEL_LAYER_MODE = "elevated-forward-billboard";
+const REQUIRED_LABEL_PLATE_MODE = "opaque-high-contrast";
+const REQUIRED_DESK_STRUCTURE_VISUAL_MODE = "opaque";
+const REQUIRED_OVERHEAD_SIGHTLINE_MODE = "clear-back-row";
+const REQUIRED_OFFICE_ASSET_REQUESTS = [
+  "/assets/prototype/office-assets/kenney/models/desk.obj",
+  "/assets/prototype/office-assets/kenney/models/chairDesk.obj",
+  "/assets/prototype/office-assets/kenney/models/computerScreen.obj",
+  "/assets/prototype/office-assets/kenney/models/computerKeyboard.obj",
+  "/assets/prototype/office-assets/kenney/models/computerMouse.obj",
+  "/assets/prototype/office-assets/kenney/models/pottedPlant.obj",
+  "/assets/prototype/office-assets/kenney/models/tableCoffee.obj",
+  "/assets/prototype/office-assets/kenney/models/bookcaseOpen.obj",
+  "/assets/prototype/office-assets/kenney/models/books.obj",
+];
 
 function resolveBrowserExecutable() {
   const candidates = [
@@ -263,6 +280,38 @@ async function openAndInspectPage(page, url, sceneSelector, screenshotPath, eval
   const consoleMessages = [];
   const pageErrors = [];
   const failedRequests = [];
+  const successfulRequests = [];
+  const requestCounts = new Map();
+
+  await page.addInitScript(() => {
+    const originalRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+    const originalCancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+    let totalAnimationFrames = 0;
+    let settledAnimationFrames = 0;
+    let settleTimestampMs = 0;
+
+    window.__clawObserverPerformance = {
+      markSettled() {
+        settleTimestampMs = performance.now();
+        settledAnimationFrames = totalAnimationFrames;
+      },
+      getMetrics() {
+        return {
+          totalAnimationFrames,
+          settledAnimationFrames,
+          postSettleAnimationFrames: Math.max(totalAnimationFrames - settledAnimationFrames, 0),
+          settleTimestampMs,
+        };
+      },
+    };
+
+    window.requestAnimationFrame = (callback) =>
+      originalRequestAnimationFrame((timestamp) => {
+        totalAnimationFrames += 1;
+        callback(timestamp);
+      });
+    window.cancelAnimationFrame = (handle) => originalCancelAnimationFrame(handle);
+  });
 
   page.on("console", (message) => {
     consoleMessages.push({
@@ -274,17 +323,27 @@ async function openAndInspectPage(page, url, sceneSelector, screenshotPath, eval
     pageErrors.push(String(error));
   });
   page.on("response", (response) => {
+    const responseUrl = response.url();
+    requestCounts.set(responseUrl, (requestCounts.get(responseUrl) ?? 0) + 1);
     if (response.status() >= 400) {
       failedRequests.push({
-        url: response.url(),
+        url: responseUrl,
         status: response.status(),
       });
+      return;
     }
+    successfulRequests.push({
+      url: responseUrl,
+      status: response.status(),
+    });
   });
 
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
   await page.waitForSelector(`${sceneSelector} canvas`, { timeout: 10000 });
   await waitForSceneSemantics(page, sceneKind);
+  await page.evaluate(() => {
+    window.__clawObserverPerformance?.markSettled?.();
+  });
   await page.waitForTimeout(1800);
 
   const sceneMetrics = await page.evaluate(evaluator);
@@ -300,9 +359,12 @@ async function openAndInspectPage(page, url, sceneSelector, screenshotPath, eval
     consoleErrors,
     pageErrors,
     failedRequests,
+    successfulRequests,
     unexpectedWarnings,
     unexpectedDebugLogs,
     sceneMetrics,
+    performanceMetrics: sceneMetrics.performanceMetrics ?? null,
+    requestCounts: Object.fromEntries(requestCounts.entries()),
     screenshotMetrics,
     screenshotPath,
   };
@@ -337,6 +399,19 @@ async function waitForSceneSemantics(page, kind) {
 }
 
 function assertSharedSceneQuality(result) {
+  const successfulAssetRequests = result.successfulRequests
+    .map((request) => request.url)
+    .filter((url) => REQUIRED_OFFICE_ASSET_REQUESTS.some((suffix) => url.endsWith(suffix)));
+  const repeatedAssetRequests = REQUIRED_OFFICE_ASSET_REQUESTS.filter((suffix) =>
+    Object.entries(result.requestCounts ?? {}).some(
+      ([url, requestCount]) => url.endsWith(suffix) && Number(requestCount) > 1,
+    ),
+  );
+
+  const externalAssetRequests = result.successfulRequests
+    .map((request) => request.url)
+    .filter((url) => url.includes("kenney.nl") || url.includes("google") || url.includes("poly.pizza"));
+
   if (
     result.consoleErrors.length > 0 ||
     result.pageErrors.length > 0 ||
@@ -347,14 +422,29 @@ function assertSharedSceneQuality(result) {
     !result.sceneMetrics.declaredStatusBoard ||
     !result.sceneMetrics.declaredLounge ||
     result.sceneMetrics.labelOrientation !== "camera-facing-yaw" ||
+    result.sceneMetrics.labelLayer !== REQUIRED_LABEL_LAYER_MODE ||
+    result.sceneMetrics.labelPlate !== REQUIRED_LABEL_PLATE_MODE ||
+    result.sceneMetrics.deskStructureVisual !== REQUIRED_DESK_STRUCTURE_VISUAL_MODE ||
     result.sceneMetrics.structuralOpacity !== "opaque" ||
+    result.sceneMetrics.overheadSightline !== REQUIRED_OVERHEAD_SIGHTLINE_MODE ||
     result.screenshotMetrics.brightPixels < MIN_BRIGHT_PIXELS ||
     result.screenshotMetrics.darkPixels < MIN_DARK_PIXELS ||
     result.screenshotMetrics.midVariancePixels < MIN_MID_VARIANCE_PIXELS ||
     result.screenshotMetrics.uniqueBuckets < MIN_UNIQUE_BUCKETS ||
     result.screenshotMetrics.dominantBucketRatio > MAX_DOMINANT_BUCKET_RATIO ||
     result.screenshotMetrics.lumaSpread < MIN_LUMA_SPREAD ||
-    !String(result.sceneMetrics.statusBoardText).includes("Global status")
+    !String(result.sceneMetrics.statusBoardText).includes("Global status") ||
+    result.sceneMetrics.assetStrategy !== "kenney-obj-local-fallback" ||
+    result.sceneMetrics.assetSource !== "kenney-furniture-kit-cc0" ||
+    result.sceneMetrics.officeAssetModelCount !== 9 ||
+    result.sceneMetrics.frameloop !== "demand" ||
+    result.sceneMetrics.performanceMode !== "idle-on-demand" ||
+    (result.performanceMetrics?.postSettleAnimationFrames ?? Number.POSITIVE_INFINITY) > MAX_IDLE_ANIMATION_FRAMES ||
+    !String(result.sceneMetrics.licensePath).includes("/office-assets/kenney/licenses/Kenney-Furniture-Kit-CC0.txt") ||
+    !String(result.sceneMetrics.provenancePath).includes("/office-assets/kenney/provenance.json") ||
+    successfulAssetRequests.length < REQUIRED_OFFICE_ASSET_REQUESTS.length ||
+    repeatedAssetRequests.length > 0 ||
+    externalAssetRequests.length > 0
   ) {
     throw new Error(JSON.stringify(result, null, 2));
   }
@@ -389,13 +479,30 @@ async function validatePrototype(page, prototypeUrl, screenshotPath) {
         declaredStatusBoard: sceneRoot?.getAttribute("data-scene-has-status-board") === "true",
         declaredLounge: sceneRoot?.getAttribute("data-scene-has-lounge") === "true",
         labelOrientation: sceneRoot?.getAttribute("data-scene-label-orientation") ?? null,
+        labelLayer: sceneRoot?.getAttribute("data-scene-label-layer") ?? null,
+        labelPlate: sceneRoot?.getAttribute("data-scene-label-plate") ?? null,
+        deskStructureVisual: sceneRoot?.getAttribute("data-scene-desk-structure-visual") ?? null,
         structuralOpacity: sceneRoot?.getAttribute("data-scene-structural-opacity") ?? null,
+        overheadSightline: sceneRoot?.getAttribute("data-scene-overhead-sightline") ?? null,
+        assetStrategy: sceneRoot?.getAttribute("data-scene-asset-strategy") ?? null,
+        assetSource: sceneRoot?.getAttribute("data-scene-asset-source") ?? null,
+        officeAssetModelCount: Number(sceneRoot?.getAttribute("data-scene-office-asset-model-count") ?? "0"),
+        licensePath: sceneRoot?.getAttribute("data-scene-license-path") ?? null,
+        provenancePath: sceneRoot?.getAttribute("data-scene-provenance-path") ?? null,
+        frameloop: sceneRoot?.getAttribute("data-scene-frameloop") ?? null,
+        performanceMode: sceneRoot?.getAttribute("data-scene-performance-mode") ?? null,
         statusBoardText: statusBoard?.textContent ?? "",
         sceneFitStatus: sceneRoot?.getAttribute("data-scene-fit-status") ?? null,
         sceneFitLeft: Number(sceneRoot?.getAttribute("data-scene-fit-left") ?? "0"),
         sceneFitRight: Number(sceneRoot?.getAttribute("data-scene-fit-right") ?? "0"),
         sceneFitTop: Number(sceneRoot?.getAttribute("data-scene-fit-top") ?? "0"),
         sceneFitBottom: Number(sceneRoot?.getAttribute("data-scene-fit-bottom") ?? "0"),
+        sceneLabelFitStatus: sceneRoot?.getAttribute("data-scene-label-fit-status") ?? null,
+        sceneLabelFitLeft: Number(sceneRoot?.getAttribute("data-scene-label-fit-left") ?? "0"),
+        sceneLabelFitRight: Number(sceneRoot?.getAttribute("data-scene-label-fit-right") ?? "0"),
+        sceneLabelFitTop: Number(sceneRoot?.getAttribute("data-scene-label-fit-top") ?? "0"),
+        sceneLabelFitBottom: Number(sceneRoot?.getAttribute("data-scene-label-fit-bottom") ?? "0"),
+        performanceMetrics: window.__clawObserverPerformance?.getMetrics?.() ?? null,
       };
     },
     "prototype",
@@ -410,7 +517,17 @@ async function validatePrototype(page, prototypeUrl, screenshotPath) {
     !result.sceneMetrics.footerPresent ||
     result.sceneMetrics.canvasWidth < 100 ||
     result.sceneMetrics.canvasHeight < 100 ||
-    result.sceneMetrics.scenePanelHeight < 100
+    result.sceneMetrics.scenePanelHeight < 100 ||
+    result.sceneMetrics.sceneFitStatus !== "fit" ||
+    result.sceneMetrics.sceneFitLeft < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneFitRight < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneFitTop < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneFitBottom < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitStatus !== "fit" ||
+    result.sceneMetrics.sceneLabelFitLeft < MIN_LABEL_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitRight < MIN_LABEL_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitTop < MIN_LABEL_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitBottom < MIN_LABEL_FIT_MARGIN
   ) {
     throw new Error(JSON.stringify(result, null, 2));
   }
@@ -469,8 +586,18 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
         declaredStatusBoard: sceneRoot?.getAttribute("data-scene-has-status-board") === "true",
         declaredLounge: sceneRoot?.getAttribute("data-scene-has-lounge") === "true",
         labelOrientation: sceneRoot?.getAttribute("data-scene-label-orientation") ?? null,
+        labelLayer: sceneRoot?.getAttribute("data-scene-label-layer") ?? null,
+        labelPlate: sceneRoot?.getAttribute("data-scene-label-plate") ?? null,
+        deskStructureVisual: sceneRoot?.getAttribute("data-scene-desk-structure-visual") ?? null,
         structuralOpacity: sceneRoot?.getAttribute("data-scene-structural-opacity") ?? null,
+        overheadSightline: sceneRoot?.getAttribute("data-scene-overhead-sightline") ?? null,
         assetStrategy: sceneRoot?.getAttribute("data-scene-asset-strategy") ?? null,
+        assetSource: sceneRoot?.getAttribute("data-scene-asset-source") ?? null,
+        officeAssetModelCount: Number(sceneRoot?.getAttribute("data-scene-office-asset-model-count") ?? "0"),
+        licensePath: sceneRoot?.getAttribute("data-scene-license-path") ?? null,
+        provenancePath: sceneRoot?.getAttribute("data-scene-provenance-path") ?? null,
+        frameloop: sceneRoot?.getAttribute("data-scene-frameloop") ?? null,
+        performanceMode: sceneRoot?.getAttribute("data-scene-performance-mode") ?? null,
         runtimeStatus: sceneRoot?.getAttribute("data-runtime-status") ?? null,
         statusBoardRuntime: statusBoard?.getAttribute("data-runtime-status") ?? null,
         hoveredCardPresent: Boolean(hoveredCard),
@@ -487,6 +614,12 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
         sceneFitRight: Number(sceneRoot?.getAttribute("data-scene-fit-right") ?? "0"),
         sceneFitTop: Number(sceneRoot?.getAttribute("data-scene-fit-top") ?? "0"),
         sceneFitBottom: Number(sceneRoot?.getAttribute("data-scene-fit-bottom") ?? "0"),
+        sceneLabelFitStatus: sceneRoot?.getAttribute("data-scene-label-fit-status") ?? null,
+        sceneLabelFitLeft: Number(sceneRoot?.getAttribute("data-scene-label-fit-left") ?? "0"),
+        sceneLabelFitRight: Number(sceneRoot?.getAttribute("data-scene-label-fit-right") ?? "0"),
+        sceneLabelFitTop: Number(sceneRoot?.getAttribute("data-scene-label-fit-top") ?? "0"),
+        sceneLabelFitBottom: Number(sceneRoot?.getAttribute("data-scene-label-fit-bottom") ?? "0"),
+        performanceMetrics: window.__clawObserverPerformance?.getMetrics?.() ?? null,
       };
     },
     "realtime",
@@ -512,12 +645,16 @@ async function validateRealtime(page, realtimeUrl, screenshotPath, expectedRunti
     result.sceneMetrics.summaryBottom > result.sceneMetrics.canvasTop ||
     result.sceneMetrics.summaryWidth < result.sceneMetrics.canvasPanelWidth * MIN_SUMMARY_WIDTH_RATIO ||
     result.sceneMetrics.detailTop > result.sceneMetrics.canvasTop ||
-    result.sceneMetrics.assetStrategy !== "local-low-poly-seam" ||
     result.sceneMetrics.sceneFitStatus !== "fit" ||
     result.sceneMetrics.sceneFitLeft < MIN_SCENE_FIT_MARGIN ||
     result.sceneMetrics.sceneFitRight < MIN_SCENE_FIT_MARGIN ||
     result.sceneMetrics.sceneFitTop < MIN_SCENE_FIT_MARGIN ||
-    result.sceneMetrics.sceneFitBottom < MIN_SCENE_FIT_MARGIN
+    result.sceneMetrics.sceneFitBottom < MIN_SCENE_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitStatus !== "fit" ||
+    result.sceneMetrics.sceneLabelFitLeft < MIN_LABEL_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitRight < MIN_LABEL_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitTop < MIN_LABEL_FIT_MARGIN ||
+    result.sceneMetrics.sceneLabelFitBottom < MIN_LABEL_FIT_MARGIN
   ) {
     throw new Error(JSON.stringify(result, null, 2));
   }

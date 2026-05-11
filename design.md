@@ -218,6 +218,14 @@ Rules:
 
 Sections:
 1. headline KPIs
+
+### 6.2 Realtime office asset delivery
+
+- Third-party office/furniture assets, if adopted, must ship from repo-local static paths under the existing Python-served asset tree.
+- Runtime scene rendering must not depend on live third-party network fetches.
+- The current design target is a curated small Kenney `Furniture Kit` subset served as local `OBJ/MTL` files with bundled license and provenance metadata.
+- Model loading must stay behind renderer-local components so the `AgentVisualState[]` adapter contract remains unchanged.
+- Each imported model path should retain a deterministic primitive fallback to avoid blank-scene regressions if a local asset fails to load or parse.
    - active sessions
    - total sessions
    - derived idle sessions

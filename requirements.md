@@ -88,8 +88,9 @@ MVP requirements:
 - The rest/lounge area may be visually simple in MVP, but it must exist as a reserved scene region for Phase 2 person/task/status expansion.
 - The MVP scene vocabulary is limited to: office shell, workstations/desks, monitors/screens, status lamps, task/file stacks, labels/nameplates, a global status board, basic open-source/static office props, and basic hover/click interactions.
 - The production scene should more closely match the warmth, geometry, and human-friendly skeuomorphic office feel of `static_scene.jpg` while remaining lightweight and reliable.
-- If practical, the implementation should evaluate permissively licensed open-source 3D asset sources for low-poly desks, chairs, monitors, partitions, lounge furniture, plants, and office props. Any adopted asset must be repo-local, license-documented, deterministic/offline at runtime, and compatible with production bundling.
-- If no suitable asset can be safely adopted in this pass, the scene should still gain a documented asset-adoption seam and richer local low-poly prop components so future glTF/model replacement does not change the live data contract.
+- The current implementation should prefer a small curated repo-local subset of permissively licensed open-source office models for desks, chairs, monitor gear, plants, lounge furniture, and bookcases when a deterministic redistribution path is available.
+- Any adopted asset must be repo-local, license-documented, provenance-documented with exact upstream archive/file identity, deterministic/offline at runtime, and compatible with production bundling.
+- The scene must keep primitive fallbacks behind the same component seam so future asset failures or swaps do not change the live data contract or blank the scene.
 - People, avatars, and agent-behavior animation are explicitly Phase 2 and out of MVP scope, but the scene contract must reserve extension points for them.
 
 Data contract requirements:

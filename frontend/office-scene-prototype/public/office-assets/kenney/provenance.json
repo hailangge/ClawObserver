@@ -1,0 +1,90 @@
+{
+  "source": {
+    "name": "Kenney Furniture Kit",
+    "version": "2.0",
+    "publisher": "Kenney",
+    "publisher_url": "https://kenney.nl/assets/furniture-kit",
+    "archive_url": "https://kenney.nl/media/pages/assets/furniture-kit/e56d2a9828-1677580847/kenney_furniture-kit.zip",
+    "archive_sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+    "imported_at": "2026-05-11",
+    "license": {
+      "spdx": "CC0-1.0",
+      "label": "Creative Commons Zero",
+      "local_license_path": "licenses/Kenney-Furniture-Kit-CC0.txt"
+    }
+  },
+  "curated_models": [
+    {
+      "key": "desk",
+      "source_zip_path": "Models/OBJ format/desk.obj",
+      "obj_path": "models/desk.obj",
+      "mtl_path": "models/desk.mtl",
+      "obj_sha256": "5591258c26d1311a99ddb7b73e1e9ca48492afa102757d51fd9b3686e3fbff7e",
+      "mtl_sha256": "5e5596841db7ef51c29d073c80e432ccca5240d0fc966255a0cb1fbcec3f6dc0"
+    },
+    {
+      "key": "chairDesk",
+      "source_zip_path": "Models/OBJ format/chairDesk.obj",
+      "obj_path": "models/chairDesk.obj",
+      "mtl_path": "models/chairDesk.mtl",
+      "obj_sha256": "2e4448333f39ceda9f3e90f02236463e34fbae80d470084ae2009541c16c89c6",
+      "mtl_sha256": "6d45d00e9569fe5b1abc4c9fb1caedc99cb7b519cdcd09a1377ecd8cb79f6f53"
+    },
+    {
+      "key": "computerScreen",
+      "source_zip_path": "Models/OBJ format/computerScreen.obj",
+      "obj_path": "models/computerScreen.obj",
+      "mtl_path": "models/computerScreen.mtl",
+      "obj_sha256": "848ae85155d913cb84b6289d7d169b6c172f3954e48a9d77eb783dcca279baf2",
+      "mtl_sha256": "8ef639de4b20b15181d963ec50d47c100d29b056bf5e56e06d394dd92b93d939"
+    },
+    {
+      "key": "computerKeyboard",
+      "source_zip_path": "Models/OBJ format/computerKeyboard.obj",
+      "obj_path": "models/computerKeyboard.obj",
+      "mtl_path": "models/computerKeyboard.mtl",
+      "obj_sha256": "e33668db75a2cb9bc6ae64e1f062810d570aebb12f8ac58e13a63074b4cb652e",
+      "mtl_sha256": "e445dc0b0ed0651fae2afb35a0581a9dd259bfff0a1c68f0edfcf11ba80e02ed"
+    },
+    {
+      "key": "computerMouse",
+      "source_zip_path": "Models/OBJ format/computerMouse.obj",
+      "obj_path": "models/computerMouse.obj",
+      "mtl_path": "models/computerMouse.mtl",
+      "obj_sha256": "f48d88fb9d1c4f79843e03a446f13b57d65dbe884095135cd907e96511d85dca",
+      "mtl_sha256": "8d2aea496efc3f8575ef22d6a134ec39d0e0d7b32f2f6b1fae125ffb244824a1"
+    },
+    {
+      "key": "pottedPlant",
+      "source_zip_path": "Models/OBJ format/pottedPlant.obj",
+      "obj_path": "models/pottedPlant.obj",
+      "mtl_path": "models/pottedPlant.mtl",
+      "obj_sha256": "839e75290814756dee97e479fa462a7477cecda06db0707a520dc0f29130fc02",
+      "mtl_sha256": "a0b3de40d67b0a085f9fd94d45ae357ba6196f84e48fe08a67fdc43b64319211"
+    },
+    {
+      "key": "tableCoffee",
+      "source_zip_path": "Models/OBJ format/tableCoffee.obj",
+      "obj_path": "models/tableCoffee.obj",
+      "mtl_path": "models/tableCoffee.mtl",
+      "obj_sha256": "a50abcd31f11b424d278756d65734193453030cf4a7c6966459e03150858885b",
+      "mtl_sha256": "eb2bffff6262d9b032d9ae1de51467559b6a03da66cd68ac5ecd34ecd004c0c5"
+    },
+    {
+      "key": "bookcaseOpen",
+      "source_zip_path": "Models/OBJ format/bookcaseOpen.obj",
+      "obj_path": "models/bookcaseOpen.obj",
+      "mtl_path": "models/bookcaseOpen.mtl",
+      "obj_sha256": "c582b0306529553018eb5a9f58eef35c7383e566a0613d32dea41612cfaded8c",
+      "mtl_sha256": "eb2bffff6262d9b032d9ae1de51467559b6a03da66cd68ac5ecd34ecd004c0c5"
+    },
+    {
+      "key": "books",
+      "source_zip_path": "Models/OBJ format/books.obj",
+      "obj_path": "models/books.obj",
+      "mtl_path": "models/books.mtl",
+      "obj_sha256": "619b78970d787db48f7562c51ed5c85239d61ce075e32f0c2b486bbaa736a479",
+      "mtl_sha256": "4c4124eba54d96842cbc27861696001bdda52abcf5e0f0e786732924c5bd61e0"
+    }
+  ]
+}
