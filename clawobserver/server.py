@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from .app import ClawObserverApp
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+PROTOTYPE_HTML = "prototype/index.html"
 
 
 def make_handler(app: ClawObserverApp) -> type[BaseHTTPRequestHandler]:
@@ -39,6 +40,21 @@ def make_handler(app: ClawObserverApp) -> type[BaseHTTPRequestHandler]:
                         )
                     return
 
+                if parsed.path == "/api/live/prototype":
+                    try:
+                        self._write_json(HTTPStatus.OK, app.prototype_live_payload())
+                    except Exception as error:
+                        self._write_json(
+                            HTTPStatus.SERVICE_UNAVAILABLE,
+                            {
+                                "error": "prototype live runtime unavailable",
+                                "detail": str(error),
+                                "captured_at": datetime.now().astimezone().isoformat(),
+                                "capture_status": "waiting",
+                            },
+                        )
+                    return
+
                 if parsed.path == "/api/history/overview":
                     range_key = self._query_value(parsed.query, "range", "current_day")
                     self._write_json(HTTPStatus.OK, app.history_payload(range_key))
@@ -47,6 +63,10 @@ def make_handler(app: ClawObserverApp) -> type[BaseHTTPRequestHandler]:
                 if parsed.path == "/api/history/tokens":
                     range_key = self._query_value(parsed.query, "range", "current_day")
                     self._write_json(HTTPStatus.OK, app.token_statistics_payload(range_key))
+                    return
+
+                if parsed.path == "/prototype":
+                    self._write_static(PROTOTYPE_HTML)
                     return
 
                 if parsed.path == "/" or parsed.path.startswith("/assets/"):
@@ -75,7 +95,11 @@ def make_handler(app: ClawObserverApp) -> type[BaseHTTPRequestHandler]:
 
         def _write_static(self, relative_path: str) -> None:
             safe_path = Path(relative_path).as_posix().lstrip("/")
-            candidate = STATIC_DIR / safe_path
+            candidate = (STATIC_DIR / safe_path).resolve()
+            static_root = STATIC_DIR.resolve()
+            if static_root not in candidate.parents and candidate != static_root:
+                self._write_json(HTTPStatus.NOT_FOUND, {"error": "static file not found"})
+                return
             if not candidate.exists() or not candidate.is_file():
                 self._write_json(HTTPStatus.NOT_FOUND, {"error": "static file not found"})
                 return

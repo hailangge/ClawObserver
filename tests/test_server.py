@@ -213,6 +213,98 @@ class ServerLiveFailureTests(unittest.TestCase):
         self.assertEqual(payload["runtime_status_reason"], "gateway call status timed out")
         self.assertEqual(payload["session_overview"]["total_sessions"], 1)
 
+    def test_live_prototype_payload_returns_narrowed_agent_payload(self) -> None:
+        handler_class = make_handler(self.app)
+        payloads: list[tuple[int, dict]] = []
+
+        def fake_write_json(instance, status, payload):
+            payloads.append((int(status), payload))
+
+        handler = handler_class.__new__(handler_class)
+        handler.path = "/api/live/prototype"
+        handler._write_json = fake_write_json.__get__(handler, handler_class)
+        handler._write_static = lambda relative_path: None
+        handler.wfile = None
+
+        self.app.prototype_live_payload = lambda: {
+            "captured_at": "2026-05-10T09:30:00+00:00",
+            "source_version": "demo-runtime",
+            "capture_status": "ok",
+            "runtime_status_reason": None,
+            "agent_sessions": [{"agent_name": "planner", "active_sessions": 2, "total_sessions": 3}],
+        }
+
+        handler.do_GET()
+
+        self.assertEqual(len(payloads), 1)
+        status, payload = payloads[0]
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["capture_status"], "ok")
+        self.assertEqual(payload["agent_sessions"][0]["agent_name"], "planner")
+
+    def test_prototype_route_serves_prototype_index(self) -> None:
+        handler_class = make_handler(self.app)
+        served_paths: list[str] = []
+
+        handler = handler_class.__new__(handler_class)
+        handler.path = "/prototype"
+        handler._write_json = lambda status, payload: None
+        handler._write_static = lambda relative_path: served_paths.append(relative_path)
+        handler.wfile = None
+
+        handler.do_GET()
+
+        self.assertEqual(served_paths, ["prototype/index.html"])
+
+    def test_root_route_serves_dashboard_index(self) -> None:
+        handler_class = make_handler(self.app)
+        served_paths: list[str] = []
+
+        handler = handler_class.__new__(handler_class)
+        handler.path = "/"
+        handler._write_json = lambda status, payload: None
+        handler._write_static = lambda relative_path: served_paths.append(relative_path)
+        handler.wfile = None
+
+        handler.do_GET()
+
+        self.assertEqual(served_paths, ["index.html"])
+
+    def test_realtime_scene_embed_asset_route_serves_static_file(self) -> None:
+        handler_class = make_handler(self.app)
+        served_paths: list[str] = []
+
+        handler = handler_class.__new__(handler_class)
+        handler.path = "/assets/prototype/assets/realtime-scene-embed.js"
+        handler._write_json = lambda status, payload: None
+        handler._write_static = lambda relative_path: served_paths.append(relative_path)
+        handler.wfile = None
+
+        handler.do_GET()
+
+        self.assertEqual(served_paths, ["prototype/assets/realtime-scene-embed.js"])
+
+    def test_static_write_rejects_parent_escape(self) -> None:
+        handler_class = make_handler(self.app)
+        payloads: list[tuple[int, dict]] = []
+
+        def fake_write_json(instance, status, payload):
+            payloads.append((int(status), payload))
+
+        handler = handler_class.__new__(handler_class)
+        handler._write_json = fake_write_json.__get__(handler, handler_class)
+        handler.send_response = lambda status: None
+        handler.send_header = lambda key, value: None
+        handler.end_headers = lambda: None
+        handler.wfile = type("Writer", (), {"write": lambda self, data: None})()
+
+        handler._write_static("../README.md")
+
+        self.assertEqual(len(payloads), 1)
+        status, payload = payloads[0]
+        self.assertEqual(status, 404)
+        self.assertEqual(payload["error"], "static file not found")
+
 
 if __name__ == "__main__":
     unittest.main()

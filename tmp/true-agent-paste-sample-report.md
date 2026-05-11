@@ -1,0 +1,30 @@
+# True Agent Paste Sample Report
+
+- Final sample image path: `tmp/true-agent-paste-sample.png`
+- Background used: `clawobserver/static/assets/reference-scene-base.jpg`
+- Real pasted cutout sprites:
+  - `main` (`working`)
+  - `se-codex` (`working`)
+  - `media-manager` (`working`)
+  - `agent-keeper` (`working`)
+  - `server-manager` (`idle`)
+- Generated placeholder sprites actually pasted:
+  - `agent-builder` (`idle`)
+  - `se-kimi` (`idle`)
+- Placeholders/coarse cutouts:
+  - `agent-builder`: generated cartoon silhouette placeholder
+  - `se-kimi`: generated cartoon silhouette placeholder
+  - existing pose-sheet cutouts can still show haloing or weak edge extraction
+- Current visual problems:
+  - desk characters are readable but not perspective-matched to every workstation angle
+  - lounge idle figures are standing-style placeholders rather than true seated couch cutouts
+  - some real cutouts may retain soft edge halos from background removal
+  - review labels are intentionally blunt and are not final UI
+- Verification summary:
+- `main` `working` slot diff pixels: 8467
+- `se-codex` `working` slot diff pixels: 6144
+- `media-manager` `working` slot diff pixels: 8203
+- `agent-keeper` `working` slot diff pixels: 11771
+- `agent-builder` `idle` slot diff pixels: 9991
+- `se-kimi` `idle` slot diff pixels: 12327
+- `server-manager` `idle` slot diff pixels: 7159

@@ -1,0 +1,26 @@
+# Scene Review Sample Report
+
+- Output artifacts:
+  - `tmp/scene-review-sample-mixed.png`
+  - `tmp/scene-review-sample-state-swap.png`
+- Real background:
+  - `clawobserver/static/assets/reference-scene-base.jpg`
+- Real extracted agent pose sheets used:
+  - `clawobserver/static/assets/main.jpg`
+  - `clawobserver/static/assets/se-codex.jpg`
+  - `clawobserver/static/assets/media-manager.jpg`
+  - `clawobserver/static/assets/server-manager.jpg`
+- Temporary placeholders:
+  - `agent-builder` placeholder sprite generated in-script because no exact source image was found
+  - `se-kimi` placeholder sprite generated in-script because no exact source image was found
+- Scenario shown in `tmp/scene-review-sample-mixed.png`:
+  - Working: `main`, `se-codex`, `media-manager`
+  - Idle/lounge: `agent-builder` placeholder, `se-kimi` placeholder, `server-manager`
+  - Some desks intentionally left empty
+- Scenario shown in `tmp/scene-review-sample-state-swap.png`:
+  - Quick state change check with `main` and `media-manager` moved to idle, `agent-builder` placeholder and `server-manager` shown as working
+- Most obvious visual problems / next fixes:
+  - Gray-background extractions are rough and can leave soft halos around the pasted figures
+  - Lounge figures do not fully match the couch perspective and need custom seated cutouts or depth adjustments
+  - Placeholder personas for `agent-builder` and `se-kimi` are only for placement review and should be replaced with real source art
+  - Labels are intentionally blunt for review and should not be treated as final UI

@@ -181,13 +181,45 @@ ClawObserver resolves live runtime data in this order:
 
 ## Realtime scene configuration
 
-The Realtime page keeps a central visualization area as the primary agent-work scene. It stays blue/deep-tech and uses the owner reference image in `docs/reference-ui-viz.jpg` as the visual source of truth for the office interior, desk layout, lounge area, and overall proportions.
+The Realtime page keeps a central visualization area as the primary agent-work scene. The current dashboard path remains the existing static JS implementation, while the next renderer step in this repo uses `clawobserver/static/assets/static_scene.jpg` as the office styling reference for both the work area and the reserved lounge area.
 
 The shipped scene geometry is config-driven through `clawobserver/static/reference-scene-layout.json`. That file stores the measured office-scene contract for `imageSize`, `background`, `workstations[].tag`, `workstations[].character`, `lounge.area`, and `lounge.slots[]`, using pixel boxes taken from the real `static_scene.jpg` asset. `clawobserver/static/app.js` loads that layout config and normalizes the image-pixel boxes into percentage-based overlay rectangles so desk tags, desk workers, lounge seats, and the extracted background stay aligned responsively.
 
 Active/working agents render only at configured workstation slots. Idle/resting agents no longer stay seated at those desks; they render only in configured lounge slots, while their canonical workstation anchors remain visually empty and can still show placeholder hanging tags with task count `0`. Scene role styling remains separate in `clawobserver/static/scene-role-styles.json` so tag accents and per-agent visual overrides stay config-driven without mixing style rules into the layout geometry contract.
 
 Hover cards are still wired through `data-scene-tooltip` hotspots on the configured character/tag anchors and currently show role plus optional session fields (`ThinkingLevel`, latest user input). When the runtime source does not expose those fields yet, the UI renders an explicit deferred placeholder instead of silently omitting them.
+
+## React Three Fiber prototype
+
+This repo also contains an isolated React Three Fiber prototype for the next Realtime scene step. It is intentionally separated from the existing Python-served `app.js` dashboard so the MVP renderer can be validated without destabilizing the current operator UI.
+
+Prototype constraints in this repo:
+
+- exactly 12 fixed workstation desks
+- scene styling references `clawobserver/static/assets/static_scene.jpg`
+- the work area and a reserved lounge/rest area both exist in MVP
+- hover and click interactions stay limited to highlight/name and an HTML detail panel
+- live OpenClaw data is adapted into a renderer-facing `AgentVisualState[]` contract, with demo fallback when live data is unavailable
+
+Prototype routes:
+
+- `/prototype` serves the isolated R3F scene shell
+- `/api/live/prototype` serves the narrowed live payload used by the prototype
+
+To build the prototype bundle:
+
+```bash
+npm --prefix frontend/office-scene-prototype install
+npm --prefix frontend/office-scene-prototype run build
+```
+
+To run its focused tests:
+
+```bash
+npm --prefix frontend/office-scene-prototype test
+```
+
+The built files are emitted to `clawobserver/static/prototype/`, which is served by the existing Python app.
 
 The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI adapter. It:
 

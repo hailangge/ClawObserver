@@ -76,6 +76,16 @@ class ClawObserverApp:
             ],
         }
 
+    def prototype_live_payload(self) -> dict[str, Any]:
+        live_payload = self.live_overview_payload()
+        return {
+            "captured_at": live_payload["captured_at"],
+            "source_version": live_payload["source_version"],
+            "capture_status": live_payload["capture_status"],
+            "runtime_status_reason": live_payload.get("runtime_status_reason"),
+            "agent_sessions": live_payload["agent_sessions"],
+        }
+
     def history_payload(self, range_key: str) -> dict[str, Any]:
         return self.archive.history_payload(range_key)
 

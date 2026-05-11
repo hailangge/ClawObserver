@@ -412,6 +412,10 @@ code {
   overflow: hidden;
 }
 
+.realtime-r3f-scene-mount {
+  min-height: 760px;
+}
+
 .scene-board {
   display: grid;
   gap: 14px;

@@ -10,6 +10,11 @@ const state = {
   sceneDeskAssignments: {},
 };
 
+const REALTIME_SCENE_SCRIPT_URL = "/assets/prototype/assets/realtime-scene-embed.js";
+const REALTIME_SCENE_STYLES_URL = "/assets/prototype/assets/realtime-scene.css";
+let realtimeSceneScriptPromise = null;
+let realtimeSceneStyleLoaded = false;
+
 const LIVE_RETRY_DELAYS_MS = [250, 1000];
 const LIVE_RECOVERY_DELAY_MS = 3000;
 const DEFAULT_LIVE_REFRESH_SECONDS = 15;
@@ -381,6 +386,7 @@ function renderRequestState(title, message) {
 }
 
 function renderFailureState(message) {
+  unmountRealtimeScene();
   const root = document.getElementById("page-root");
   root.setAttribute("aria-busy", "false");
   root.innerHTML = `
@@ -628,12 +634,12 @@ function renderRealtime(payload, sceneRoleStyles) {
   document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`Live · ${formatDateTime(payload.captured_at)}`);
   const root = document.getElementById("page-root");
+  unmountRealtimeScene();
   const totalGatewayCount = lookupGatewayCount(payload.gateways, "total");
   const gatewayExitCount = findGatewayCount(payload.gateways, "exits_today");
   const activeAgents = [...payload.agent_sessions]
     .filter((item) => item.active_sessions > 0)
     .sort((left, right) => right.active_sessions - left.active_sessions || String(left.agent_name).localeCompare(String(right.agent_name)));
-  const sceneModel = buildRealtimeSceneModel(payload, sceneRoleStyles);
 
   root.innerHTML = `
     <section class="metric-grid">
@@ -647,12 +653,11 @@ function renderRealtime(payload, sceneRoleStyles) {
       <div class="panel-header">
         <div>
           <h2>Realtime Claw Scene</h2>
-          <p class="panel-subtitle">Reference-matched office stage with shared-row hanging-tag baselines, visually empty idle desks, and a dedicated lounge strip for resting agents. Parallel task count currently uses the live active_sessions field until OpenClaw publishes first-class per-agent task totals.</p>
+          <p class="panel-subtitle">Live 3D office scene with 12 fixed desks, a reserved lounge zone, warmer friendlier office detail, and truthful runtime-driven desk and board state.</p>
         </div>
-        <p class="meta-line">Scene-first live view</p>
+        <p class="meta-line">Scene-first live view · React Three Fiber</p>
       </div>
-      ${renderRealtimeScene(sceneModel, payload)}
-      <p class="scene-footnote">Hover cards expose agent name, latest user-input timestamp/content, session model, ThinkingLevel, and any trustworthy live task-detail lines the runtime publishes. Role styling remains data-driven from <code>/assets/scene-role-styles.json</code>.</p>
+      <div id="realtime-r3f-scene-mount" class="realtime-r3f-scene-mount" data-scene-runtime-status="${escapeAttribute(payload.capture_status)}"></div>
     </section>
     <section class="panel-grid">
       <section class="panel">
@@ -712,7 +717,8 @@ function renderRealtime(payload, sceneRoleStyles) {
       ])}
     </section>
   `;
-  bindSceneTooltips(root);
+  void sceneRoleStyles;
+  mountRealtimeScene(root.querySelector("#realtime-r3f-scene-mount"), payload);
 }
 
 async function loadSceneRoleStyles(options = {}) {
@@ -1343,6 +1349,7 @@ function slugify(value) {
 }
 
 function renderHistorical(payload) {
+  unmountRealtimeScene();
   document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`${payload.mode_label} · ${displayRange(state.range)}`);
   const root = document.getElementById("page-root");
@@ -1441,6 +1448,7 @@ function renderHistorical(payload) {
 }
 
 function renderTokens(payload) {
+  unmountRealtimeScene();
   document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`${payload.selection_label} · ${displayRange(state.range)}`);
   const root = document.getElementById("page-root");
@@ -1480,6 +1488,73 @@ function renderTokens(payload) {
       ])}
     </section>
   `;
+}
+
+function ensureRealtimeSceneScript() {
+  if (window.ClawObserverRealtimeScene) {
+    return Promise.resolve(window.ClawObserverRealtimeScene);
+  }
+  if (realtimeSceneScriptPromise) {
+    return realtimeSceneScriptPromise;
+  }
+  realtimeSceneScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = REALTIME_SCENE_SCRIPT_URL;
+    script.onload = () => {
+      if (window.ClawObserverRealtimeScene) {
+        resolve(window.ClawObserverRealtimeScene);
+        return;
+      }
+      reject(new Error("Realtime scene bundle loaded without exposing window.ClawObserverRealtimeScene"));
+    };
+    script.onerror = () => reject(new Error(`Failed to load realtime scene bundle: ${REALTIME_SCENE_SCRIPT_URL}`));
+    document.head.appendChild(script);
+  });
+  return realtimeSceneScriptPromise;
+}
+
+function ensureRealtimeSceneStyles() {
+  if (realtimeSceneStyleLoaded || document.querySelector(`link[data-realtime-scene-style="${REALTIME_SCENE_STYLES_URL}"]`)) {
+    realtimeSceneStyleLoaded = true;
+    return;
+  }
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = REALTIME_SCENE_STYLES_URL;
+  link.dataset.realtimeSceneStyle = REALTIME_SCENE_STYLES_URL;
+  document.head.appendChild(link);
+  realtimeSceneStyleLoaded = true;
+}
+
+function mountRealtimeScene(target, payload) {
+  if (!target) {
+    return;
+  }
+  ensureRealtimeSceneStyles();
+  ensureRealtimeSceneScript()
+    .then((sceneApi) => {
+      if (!target.isConnected || state.page !== "realtime") {
+        return;
+      }
+      sceneApi.render(target, payload);
+    })
+    .catch((error) => {
+      console.error(error);
+      target.innerHTML = `
+        <section class="panel loading-state realtime-scene-fallback">
+          <h2>Scene unavailable</h2>
+          <p>${escapeHtml(formatLoadError(error))}</p>
+        </section>
+      `;
+    });
+}
+
+function unmountRealtimeScene() {
+  const target = document.getElementById("realtime-r3f-scene-mount");
+  if (target && window.ClawObserverRealtimeScene) {
+    window.ClawObserverRealtimeScene.unmount(target);
+  }
 }
 
 function metricCard(label, value, footnote) {

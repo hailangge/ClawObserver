@@ -1038,6 +1038,9 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 if (url === "/assets/scene-role-styles.json") {{
                   return Promise.resolve({{ ok: true, json: async () => context.defaultSceneRoleStyles }});
                 }}
+                if (url === "/assets/reference-scene-layout.json") {{
+                  return Promise.resolve({{ ok: true, json: async () => ({{}}) }});
+                }}
                 if (url === "/api/live/overview") {{
                   return new Promise((resolve, reject) => {{
                     const timer = setTimeout(() => resolve({{
@@ -1077,7 +1080,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 status: elements["status-pill"].textContent,
                 htmlHasScene: elements["page-root"].innerHTML.includes("Realtime Claw Scene"),
                 htmlHasFailure: elements["page-root"].innerHTML.includes("Load failed"),
-                htmlHasWaitingChip: elements["page-root"].innerHTML.includes("Capture waiting"),
+                htmlHasSceneMount: elements["page-root"].innerHTML.includes("realtime-r3f-scene-mount"),
+                htmlHasWaitingStatus: elements["page-root"].innerHTML.includes('data-scene-runtime-status="waiting"'),
                 htmlHasVersion: elements["page-root"].innerHTML.includes("slow-waiting-runtime"),
               }}));
             }}).catch((error) => {{
@@ -1092,7 +1096,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         self.assertTrue(payload["status"].startswith("Live ·"))
         self.assertTrue(payload["htmlHasScene"])
         self.assertFalse(payload["htmlHasFailure"])
-        self.assertTrue(payload["htmlHasWaitingChip"])
+        self.assertTrue(payload["htmlHasSceneMount"])
+        self.assertTrue(payload["htmlHasWaitingStatus"])
         self.assertTrue(payload["htmlHasVersion"])
 
     def test_realtime_normalizes_mixed_response_shapes_without_failure(self) -> None:
@@ -1132,6 +1137,9 @@ class RealtimeSceneLogicTests(unittest.TestCase):
               fetch: async (url) => {{
                 if (url === "/assets/scene-role-styles.json") {{
                   return {{ ok: true, json: async () => context.defaultSceneRoleStyles }};
+                }}
+                if (url === "/assets/reference-scene-layout.json") {{
+                  return {{ ok: true, json: async () => ({{}}) }};
                 }}
                 if (url === "/api/live/overview") {{
                   return {{
@@ -1223,6 +1231,9 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 if (url === "/assets/scene-role-styles.json") {{
                   return {{ ok: true, json: async () => context.defaultSceneRoleStyles }};
                 }}
+                if (url === "/assets/reference-scene-layout.json") {{
+                  return {{ ok: true, json: async () => ({{}}) }};
+                }}
                 if (url === "/api/live/overview") {{
                   liveCalls += 1;
                   return {{
@@ -1257,7 +1268,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 status: elements["status-pill"].textContent,
                 htmlHasScene: elements["page-root"].innerHTML.includes("Realtime Claw Scene"),
                 htmlHasFailure: elements["page-root"].innerHTML.includes("Load failed"),
-                htmlHasWaitingChip: elements["page-root"].innerHTML.includes("Capture waiting"),
+                htmlHasSceneMount: elements["page-root"].innerHTML.includes("realtime-r3f-scene-mount"),
+                htmlHasWaitingStatus: elements["page-root"].innerHTML.includes('data-scene-runtime-status="waiting"'),
                 htmlHasZeroState: elements["page-root"].innerHTML.includes(">0<"),
                 liveCalls,
               }}));
@@ -1274,7 +1286,8 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         self.assertTrue(payload["status"].startswith("Live ·"))
         self.assertTrue(payload["htmlHasScene"])
         self.assertFalse(payload["htmlHasFailure"])
-        self.assertTrue(payload["htmlHasWaitingChip"])
+        self.assertTrue(payload["htmlHasSceneMount"])
+        self.assertTrue(payload["htmlHasWaitingStatus"])
         self.assertTrue(payload["htmlHasZeroState"])
 
     def test_realtime_waiting_non_empty_live_payload_renders_agent_tags_and_queue_counts(self) -> None:
@@ -1314,6 +1327,9 @@ class RealtimeSceneLogicTests(unittest.TestCase):
               fetch: async (url) => {{
                 if (url === "/assets/scene-role-styles.json") {{
                   return {{ ok: true, json: async () => context.defaultSceneRoleStyles }};
+                }}
+                if (url === "/assets/reference-scene-layout.json") {{
+                  return {{ ok: true, json: async () => ({{}}) }};
                 }}
                 if (url === "/api/live/overview") {{
                   return {{
@@ -1385,11 +1401,11 @@ class RealtimeSceneLogicTests(unittest.TestCase):
                 status: elements["status-pill"].textContent,
                 htmlHasScene: elements["page-root"].innerHTML.includes("Realtime Claw Scene"),
                 htmlHasFailure: elements["page-root"].innerHTML.includes("Load failed"),
-                htmlHasPlannerTag: elements["page-root"].innerHTML.includes("planner (2)"),
-                htmlHasOperatorTag: elements["page-root"].innerHTML.includes("operator (1)"),
+                htmlHasSceneMount: elements["page-root"].innerHTML.includes("realtime-r3f-scene-mount"),
+                htmlHasWaitingStatus: elements["page-root"].innerHTML.includes('data-scene-runtime-status="waiting"'),
+                htmlHasSourceVersion: elements["page-root"].innerHTML.includes("openclaw-cli-runtime"),
                 htmlHasQueuePending: elements["page-root"].innerHTML.includes("Pending delivery items"),
                 htmlHasQueueFailed: elements["page-root"].innerHTML.includes("Failed delivery items"),
-                htmlHasWaitingChip: elements["page-root"].innerHTML.includes("Capture waiting"),
               }}));
             }}).catch((error) => {{
               console.error(error);
@@ -1403,11 +1419,11 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         self.assertTrue(payload["status"].startswith("Live ·"))
         self.assertTrue(payload["htmlHasScene"])
         self.assertFalse(payload["htmlHasFailure"])
-        self.assertTrue(payload["htmlHasPlannerTag"])
-        self.assertTrue(payload["htmlHasOperatorTag"])
+        self.assertTrue(payload["htmlHasSceneMount"])
+        self.assertTrue(payload["htmlHasWaitingStatus"])
+        self.assertTrue(payload["htmlHasSourceVersion"])
         self.assertTrue(payload["htmlHasQueuePending"])
         self.assertTrue(payload["htmlHasQueueFailed"])
-        self.assertTrue(payload["htmlHasWaitingChip"])
 
 
 if __name__ == "__main__":

@@ -68,7 +68,52 @@ The product must provide a realtime overview page containing at minimum:
    - must include today’s gateway exit count when the runtime or host service metadata can provide it conservatively
    - if today’s exit count is derived from logs or the journal, the product must document that heuristic clearly instead of presenting it as an exact runtime-native counter
 
-### 4.2 Historical archive views
+### 4.2 Realtime central scene MVP
+
+The Realtime page must keep a central embeddable scene region that presents current agent state through a lightweight 3D office/workstation view.
+
+MVP requirements:
+- Use Three.js plus React Three Fiber as the recommended primary rendering route for this scene.
+- The React Three Fiber office scene is the production central scene for the Realtime page served at `/`; it is not limited to a prototype-only route.
+- Treat the scene as a simple state-presentation engine, not as a game, simulation, or visual-effects showcase.
+- Keep MVP desktop-only; mobile support is explicitly out of scope.
+- Keep MVP lightweight; do not require shadows, complex post-processing, or complex UI effects.
+- Do not use image-batch or state-image generation as the core rendering approach.
+- Optional static textures or image assets may be used later, but they are not the core rendering contract.
+- The scene layout must include exactly 12 fixed workstation/desk slots in MVP; desk count is not dynamic in this phase.
+- Final 3D styling direction must reference `clawobserver/static/assets/static_scene.jpg` and include both a work area and a rest/lounge area region.
+- The rest/lounge area may be visually simple in MVP, but it must exist as a reserved scene region for Phase 2 person/task/status expansion.
+- The MVP scene vocabulary is limited to: office shell, workstations/desks, monitors/screens, status lamps, task/file stacks, labels/nameplates, a global status board, and basic hover/click interactions.
+- The production scene should more closely match the warmth, geometry, and human-friendly skeuomorphic office feel of `static_scene.jpg` while remaining lightweight and reliable.
+- People, avatars, and agent-behavior animation are explicitly Phase 2 and out of MVP scope, but the scene contract must reserve extension points for them.
+
+Data contract requirements:
+- The scene component must accept a stable data protocol that is independent of OpenClaw runtime internals.
+- OpenClaw-specific data must be adapted through a separate adapter layer into `AgentVisualState[]`.
+- The scene renderer must not know OpenClaw runtime command structure, response shape, or storage details.
+- The scene must remain embeddable inside the existing web dashboard rather than becoming a separate application shell.
+- The scene configuration must define a constant for exactly 12 fixed workstation slots for MVP placement and interaction.
+
+`AgentVisualState` must be defined with at least:
+- `id`
+- `name`
+- `status`: `idle | busy | error | offline`
+- `taskCount`
+- `currentTask`
+- `errorMessage`
+- `updatedAt`
+- optional `avatarState` reserved for Phase 2
+
+Required visual mappings:
+- `idle` => green, low-brightness, normal desk presentation
+- `busy` => blue highlighted monitor plus visible task/file stack
+- `error` => red lamp or alert treatment; simple blink is optional
+- `offline` => greyed desk with monitor off
+- degraded or waiting global runtime states must be reflected honestly through the global board, desk emptiness, and detail copy rather than demo-invented activity
+- `taskCount` must map to a capped number of visible task/file blocks; the renderer must never create unbounded objects from raw counts
+- interactions are limited to hover highlight plus name, and click selection plus detail panel
+
+### 4.3 Historical archive views
 
 The product must provide a historical page grounded in the audited dashboard definitions and later verified overview additions.
 
@@ -101,7 +146,7 @@ Historical interpretation rules:
 - Time must remain on the X-axis.
 - Separate data objects must remain separate series instead of being flattened into a single aggregate unless the panel is explicitly an aggregate KPI.
 
-### 4.3 Dedicated token statistics page
+### 4.4 Dedicated token statistics page
 
 The product must provide a historical statistics page focused on token usage.
 
@@ -152,6 +197,8 @@ This means:
 - restrained color accents are preferred over loud gradients or neon overload
 - typography and layout should feel precise and operational
 - panels should look intentional and modern without feeling like a sci-fi gimmick
+- the central Realtime scene should read as a clean operational workspace rather than a toy or a cinematic setpiece
+- the 3D scene should emphasize state legibility and embedding practicality over rendering spectacle
 - the header should include reliable branded ClawObserver artwork using an OpenClaw-style lobster with a magnifying glass and an enlarged magnified eye
 - historical charts must render visible Y-axis labels and shared mouse-hover tooltips that show every series value at the hovered X bucket
 
@@ -191,22 +238,20 @@ ClawObserver is acceptable when all of the following are true:
 7. Historical charts show visible Y-axis numeric labels and shared mouse-hover tooltips that reveal every series value at the hovered X bucket.
 8. The UI follows the approved deep-tech minimal style direction, including branded ClawObserver header artwork.
 9. The Realtime page keeps a central visualization area as the main agent-work scene instead of flattening that view into ordinary cards.
-10. The central Realtime visualization reads as a coherent 3D-like office/work scene populated by cute little people, not abstract icons or a collage of mismatched shapes.
-11. The scene shows each agent's current work state visually, with hanging tags/nameplates that display agent name plus current task count.
-12. Scene role/agent presentation is configurable through components/config data rather than hardcoded one-off styling.
-13. If hover session details such as ThinkingLevel or latest user input are not yet available from the runtime source, the UI explicitly labels them as deferred placeholders rather than silently omitting them.
-14. The central Realtime visualization must visually match the owner-provided reference image at `/mnt/data/repositories/ClawObserver/docs/reference-ui-viz.jpg` as closely as practical, using that image as the single source of truth for scene layout, palette, proportions, background treatment, and office/workspace visual language.
-15. Scene geometry must be driven by `clawobserver/static/reference-scene-layout.json`, with `imageSize`, `background`, `workstations[].tag`, `workstations[].character`, `lounge.area`, and `lounge.slots[]` defining the measured office-scene anchors.
-16. `app.js` must load the scene-layout config and normalize its image-pixel coordinates into percentage-based overlay rectangles so the Realtime scene stays aligned responsively instead of relying on hardcoded one-off positions.
-17. Scene role/task styling must remain driven by `clawobserver/static/scene-role-styles.json` or an equivalent config contract rather than hardcoded per-agent presentation logic.
-18. The owner adjustment pass must keep the overall Realtime office scene scale visually appropriate to the current layout; do not force an across-the-board half-scale shrink.
-19. When horizontal space is available, secondary controls/information should be moved or kept on the right side so the office scene remains the primary focal area.
-20. All hanging agent nameplates must align to the measured boxes from the real `static_scene.jpg` asset, sharing a perfectly aligned horizontal baseline per row with a consistent vertical offset from the corresponding workstation anchor.
-21. Active/working agents must render only at their configured workstation slots. Idle/resting agents must render only in configured lounge slots, while their original workstation areas remain visually empty and may still show placeholder hanging tags with task count `0`.
-22. Hovering a workstation zone must show a bubble containing the latest user-input timestamp, latest user-input content, model, and thinking level for that agent/session; the bubble must follow cursor/agent positioning without breaking layout.
-23. If hover session details such as agent name / ThinkingLevel / latest user input cannot be completed yet, the code must either implement the tooltip or document the explicit hook/deferred location rather than silently omitting it.
-24. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
-25. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
+10. The main Realtime scene served at `/` is a minimal state-driven 3D office/workstation presentation built around Three.js plus React Three Fiber, replacing the prior static-image center scene area.
+11. The scene accepts a stable renderer-facing `AgentVisualState[]` contract that remains independent of OpenClaw runtime internals.
+12. OpenClaw runtime data reaches the scene only through a separate adapter layer; the scene renderer does not know OpenClaw-specific command or payload details.
+13. The MVP scene supports only the approved minimal object set: office shell, desks/workstations, monitors, status lamps, capped task/file stacks, labels/nameplates, global status board, and basic hover/click interaction.
+14. The status mapping is explicit and consistent: `idle` green/low-brightness desk, `busy` blue highlighted monitor plus task stack, `error` red alert treatment, `offline` greyed desk with monitor off.
+15. `taskCount` renders through a capped visible stack rule rather than unbounded object creation.
+16. Interaction scope is limited to hover highlight/name and click selection/detail panel for MVP.
+17. The scene remains desktop-only for MVP; mobile support is deferred.
+18. The MVP omits shadows and complex UI/rendering effects.
+19. Images are not the core rendering route; optional static textures/assets may be layered later without changing the main scene contract.
+20. The design reserves extension points for future avatar/person rendering through optional `avatarState`, but avatars and behavior remain Phase 2 and out of MVP scope.
+21. The implementation remains lightweight enough to be a credible alternative to the prior SigNoz setup.
+22. Public-repo deployment documentation stays consistent with the actual script-first user-level `systemd` install flow.
+23. Validation must include real browser loading of the production `/` Realtime page with zero console errors, zero page errors, zero failed requests, screenshot artifacts under `tmp/`, and proof that live `/api/live/overview` data changes visible scene and summary state.
 
 ## 10. Open questions
 
@@ -217,6 +262,8 @@ These should be resolved conservatively during implementation:
 3. Does channel always exist for token accounting, or must the UI gracefully omit that breakdown?
 4. Are gateway historical error/start counts available from the runtime, or should they stay optional and hidden by default?
 5. Should OpenClaw expose a first-class gateway exits-today counter so ClawObserver can retire the journal heuristic where it is currently needed?
+6. Which minimal scene-store contract should own hover/selection state for the embeddable R3F scene?
+7. How many workstation slots should the MVP office shell support before layout/config generalization is required?
 
 ## 11. Focused repair: Realtime hanging tags and agent status (2026-05-07)
 
