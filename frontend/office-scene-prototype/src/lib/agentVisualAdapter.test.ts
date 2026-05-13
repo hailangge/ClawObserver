@@ -64,4 +64,22 @@ describe("mapLiveOverviewToAgentVisualStates", () => {
     expect(result[0]?.status).toBe("error");
     expect(result[0]?.errorMessage).toBe("gateway timeout while collecting live state");
   });
+
+  it("honors explicit per-agent visual status hints when provided", () => {
+    const result = mapLiveOverviewToAgentVisualStates({
+      captured_at: "2026-05-12T09:30:00Z",
+      capture_status: "ok",
+      agent_sessions: [
+        { agent_name: "triage", active_sessions: 0, total_sessions: 2, visual_status: "error" },
+        { agent_name: "watcher", active_sessions: 0, total_sessions: 0, visual_status: "offline" },
+        { agent_name: "qa", active_sessions: 0, total_sessions: 1, visual_status: "idle" },
+      ],
+    });
+
+    expect(result.map((agent) => ({ id: agent.id, status: agent.status }))).toEqual([
+      { id: "triage", status: "error" },
+      { id: "watcher", status: "offline" },
+      { id: "qa", status: "idle" },
+    ]);
+  });
 });

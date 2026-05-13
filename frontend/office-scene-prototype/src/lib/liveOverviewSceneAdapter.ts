@@ -3,6 +3,8 @@ import type { AgentRuntimeStatus, AgentVisualState, SceneSummary } from "../agen
 type LiveOverviewAgent = {
   agent_name?: unknown;
   agentName?: unknown;
+  visual_status?: unknown;
+  visualStatus?: unknown;
   active_sessions?: unknown;
   activeSessions?: unknown;
   total_sessions?: unknown;
@@ -98,7 +100,20 @@ function normalizeCaptureStatus(payload: LiveOverviewPayload): AgentRuntimeStatu
   return "waiting";
 }
 
+function normalizeVisualStatus(value: unknown): AgentVisualState["status"] | null {
+  const status = asString(value);
+  if (status === "idle" || status === "busy" || status === "error" || status === "offline") {
+    return status;
+  }
+  return null;
+}
+
 function deriveStatus(agent: LiveOverviewAgent, payload: LiveOverviewPayload): AgentVisualState["status"] {
+  const explicitVisualStatus = normalizeVisualStatus(agent.visual_status ?? agent.visualStatus);
+  if (explicitVisualStatus) {
+    return explicitVisualStatus;
+  }
+
   const activeSessions = asCount(agent.active_sessions ?? agent.activeSessions);
   const totalSessions = asCount(agent.total_sessions ?? agent.totalSessions);
   const captureStatus = normalizeCaptureStatus(payload);

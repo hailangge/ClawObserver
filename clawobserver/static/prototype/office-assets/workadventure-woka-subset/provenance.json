@@ -1,0 +1,83 @@
+{
+  "assetSet": "workadventure-woka-runtime-subset",
+  "previewOnly": false,
+  "source": {
+    "repository": "https://github.com/workadventure/workadventure",
+    "headCommit": "b94fa79f8313eb90e606847669044cd0631029a8",
+    "playWokaDataPath": "play/src/pusher/data/woka.json",
+    "runtimeCharacterRoot": "play/public/resources/characters/pipoya",
+    "localSubset": [
+      {
+        "id": "male1",
+        "sourceUrl": "resources/characters/pipoya/Male 01-1.png",
+        "localPath": "sprites/male1.png"
+      },
+      {
+        "id": "male11",
+        "sourceUrl": "resources/characters/pipoya/Teacher male 02.png",
+        "localPath": "sprites/male11.png"
+      },
+      {
+        "id": "female1",
+        "sourceUrl": "resources/characters/pipoya/Female 01-1.png",
+        "localPath": "sprites/female1.png"
+      },
+      {
+        "id": "female6",
+        "sourceUrl": "resources/characters/pipoya/Female 17-2.png",
+        "localPath": "sprites/female6.png"
+      }
+    ]
+  },
+  "license": {
+    "playLicensePath": "licenses/WORKADVENTURE-play-LICENSE.txt",
+    "pipoyaAttributionPath": "licenses/pipoya-about.txt",
+    "usageScope": "workadventure-runtime-demo-only",
+    "notes": [
+      "These default Woka sprite sheets are copied from the official WorkAdventure runtime repository for ClawObservers repo-local embedded WorkAdventure-style renderer demo.",
+      "The upstream WorkAdventure play package carries additional licensing conditions; keep this subset limited to the embedded WorkAdventure-style renderer and re-review before broader reuse.",
+      "The default Woka textures point to bundled Pipoya sprite sheets; the upstream attribution note is copied verbatim alongside this subset."
+    ]
+  },
+  "contract": {
+    "spriteSheetWidth": 96,
+    "spriteSheetHeight": 128,
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "standingFrameColumn": 1,
+    "standingFrameRow": 0,
+    "subsetCount": 4
+  },
+  "files": [
+    {
+      "path": "licenses/WORKADVENTURE-play-LICENSE.txt",
+      "bytes": 35751,
+      "sha256": "12aae5db7f9d80223d418b1dc97deb235ab207fa3cd4821e16c6ac00072cea41"
+    },
+    {
+      "path": "licenses/pipoya-about.txt",
+      "bytes": 149,
+      "sha256": "eb1e2b6f3aca0caa8556b93372b696f9f90dd0c4fd0ce2c1f522ce71e83a72bf"
+    },
+    {
+      "path": "sprites/female1.png",
+      "bytes": 3060,
+      "sha256": "35b2c3598d65e16c4835f45fca3ff12f0865d1393202a8469004924bdc4b758a"
+    },
+    {
+      "path": "sprites/female6.png",
+      "bytes": 2763,
+      "sha256": "684178e526869586c7fc94c455d0f4b5f1f9f56b7bc035cc9a6000920f4a0bf4"
+    },
+    {
+      "path": "sprites/male1.png",
+      "bytes": 3488,
+      "sha256": "359c9cac3e90d706e00dd4f123d43e449c2f2c7871ff3e1ec9d1544cb9ad8e3d"
+    },
+    {
+      "path": "sprites/male11.png",
+      "bytes": 3062,
+      "sha256": "f912eda6d794ff23ce6a1b27f785a800c6261f8e33ffd5f96fffa5de6ec325aa"
+    }
+  ]
+}

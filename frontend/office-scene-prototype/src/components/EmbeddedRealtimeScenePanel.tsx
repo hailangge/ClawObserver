@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import type { AgentVisualState, SceneSummary } from "../agentVisualState";
-import { AgentOfficeScene } from "./AgentOfficeScene";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { SceneStatusSummary } from "./SceneStatusSummary";
 import { useSceneStore } from "../lib/store";
 import { findAgentById } from "../lib/sceneState";
+import { SceneRenderer } from "./SceneRenderer";
 
 type EmbeddedRealtimeScenePanelProps = {
   agents: AgentVisualState[];
@@ -33,17 +33,11 @@ export function EmbeddedRealtimeScenePanel({ agents, summary }: EmbeddedRealtime
       <div className="scene-layout scene-layout--stacked">
         <div className="scene-top-stack">
           <SceneStatusSummary summary={summary} variant="wide" />
-          <div className="realtime-detail-strip">
-            <AgentDetailPanel
-              agent={selectedAgent}
-              title="Selected desk"
-              emptyMessage="Select a desk to inspect the current live task, session, and model details."
-            />
-          </div>
         </div>
         <section className="scene-panel">
           <div className="scene-canvas-panel">
-            <AgentOfficeScene
+            <SceneRenderer
+              mode="workadventure"
               agents={effectiveAgents}
               summary={summary}
               hoveredAgentId={hoveredAgentId}
@@ -52,14 +46,21 @@ export function EmbeddedRealtimeScenePanel({ agents, summary }: EmbeddedRealtime
               onSelect={setSelectedAgentId}
             />
           </div>
+          <div className="realtime-detail-strip realtime-detail-strip--below-map" data-detail-strip-layout="below-map-stable-horizontal">
+            <AgentDetailPanel
+              agent={selectedAgent}
+              title="Selected desk"
+              emptyMessage="Select a desk to inspect the current live task, session, and model details."
+            />
+          </div>
           <footer className="scene-footer">
             <span data-scene-hovered-agent>Hover: {findAgentById(effectiveAgents, hoveredAgentId)?.name ?? "none"}</span>
             <span data-scene-fixed-desks>Fixed desks: 12</span>
-            <span data-scene-lounge-note>Lounge zone: reserved MVP region</span>
+            <span data-scene-lounge-note>Lounge zone: quiet / waiting region</span>
             <span data-scene-runtime-note>
               {summary?.captureStatus === "degraded" || summary?.captureStatus === "waiting"
                 ? summary.runtimeStatusReason ?? "Live runtime is waiting for a fuller payload."
-                : "Desk and board state update from live OpenClaw payloads."}
+                : "Tile-map desk and board state update from live OpenClaw payloads."}
             </span>
           </footer>
         </section>
@@ -72,7 +73,7 @@ export function EmbeddedRealtimeScenePanel({ agents, summary }: EmbeddedRealtime
         </div>
       </div>
       <p className="scene-footnote">
-        Hover cards and selection panels use only current renderer-facing live data. Empty desks stay visibly distinct, while the lounge remains reserved for non-active or waiting office state.
+        The primary embedded scene is the WorkAdventure-style office surface. The retained React Three Fiber room stays available on the `/prototype` route as the current legacy 3D path.
       </p>
     </div>
   );

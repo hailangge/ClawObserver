@@ -7,15 +7,37 @@ import {
   DESK_LABEL_ELEVATION,
   DESK_LABEL_FORWARD_OFFSET,
   DESK_LABEL_HEIGHT,
+  DESK_AVATAR_PLACEMENT_MODE,
+  DESK_AVATAR_PREVIEW_MODE,
+  DESK_LABEL_HIERARCHY_MODE,
   DESK_LABEL_LAYER_MODE,
   DESK_LABEL_ORIENTATION_MODE,
   DESK_LABEL_PLATE_MODE,
+  DESK_LABEL_SCALE_HIERARCHY_MODE,
+  DESK_LABEL_OCCLUSION_MODE,
+  DESK_INNER_WORKSTATION_ORIENTATION_MODE,
   DESK_LABEL_WIDTH,
+  DESK_LABEL_X_OFFSET,
+  DESK_AVATAR_VISIBLE_LAYOUT_MODE,
+  DESK_AVATAR_VISIBLE_MARKER,
+  DESK_MONITOR_DETAIL_MODE,
+  DESK_PERIPHERAL_VISIBILITY_MODE,
+  PREVIEW_AVATAR_DESK_LABELS,
+  DESK_SURFACE_ASPECT_RATIO,
   DESK_STRUCTURE_VISUAL_MODE,
+  DESK_WORKSTATION_PROPORTION_MODE,
 } from "./AgentDesk";
 import { OFFICE_ASSET_LICENSE_PATH, OFFICE_ASSET_MODEL_COUNT, OFFICE_ASSET_PROVENANCE_PATH, OFFICE_ASSET_SOURCE, OFFICE_ASSET_STRATEGY } from "../data/officeAssetCatalog";
+import {
+  OFFICE_AVATAR_PREVIEW_LICENSE_PATH,
+  OFFICE_AVATAR_PREVIEW_MODEL_COUNT,
+  OFFICE_AVATAR_PREVIEW_MODE,
+  OFFICE_AVATAR_PREVIEW_PROVENANCE_PATH,
+  OFFICE_AVATAR_PREVIEW_SOURCE,
+} from "../data/officeAvatarCatalog";
 import { DeskGrid } from "./DeskGrid";
 import { GlobalStatusBoard } from "./GlobalStatusBoard";
+import { AVATAR_DEMO_STAGE_COUNT, AVATAR_DEMO_STAGE_MARKER, AVATAR_DEMO_STAGE_MODE, OfficeAvatarDemoStage } from "./OfficeAvatarDemoStage";
 import { STRUCTURAL_OPACITY_MODE } from "./OfficeProps";
 import { FRONT_LABEL_LANE_CLEARANCE_MODE, OfficeShell, OVERHEAD_SIGHTLINE_MODE } from "./OfficeShell";
 
@@ -28,16 +50,29 @@ type AgentOfficeSceneProps = {
   onSelect: (agentId: string | null) => void;
 };
 
-const CAMERA_TARGET = new Vector3(0, 0.95, 0.5);
-const CAMERA_PITCH = MathUtils.degToRad(34);
+const CAMERA_TARGET = new Vector3(0, 1.02, 0.9);
+const CAMERA_PITCH = MathUtils.degToRad(30);
 const CAMERA_FOV = 40;
 const SCENE_WIDTH = 17.5;
 const SCENE_DEPTH = 14.5;
 const SCENE_HEIGHT = 4.2;
 export const SCENE_FRAMELOOP_MODE = "demand";
 export const SCENE_PERFORMANCE_MODE = "idle-on-demand";
-export const SCENE_STYLE_PROFILE = "toy-office-chunky-warm";
-export const SCENE_STYLE_REFERENCE_MODE = "quaternius-inspired-safe-emulation";
+export const SCENE_STYLE_PROFILE = "toy-office-command-center";
+export const SCENE_STYLE_REFERENCE_MODE = "quaternius-inspired-command-center-safe-emulation";
+export const SCENE_WORKSTATION_ORIENTATION_MODE = "all-desks-face-camera";
+export const SCENE_MONITOR_STYLE_MODE = "screen-plane-cyan-edge";
+export const SCENE_LABEL_HIERARCHY_MODE = DESK_LABEL_HIERARCHY_MODE;
+export const SCENE_LABEL_SCALE_HIERARCHY_CONTRACT = DESK_LABEL_SCALE_HIERARCHY_MODE;
+export const SCENE_MONITOR_DETAIL_CONTRACT = DESK_MONITOR_DETAIL_MODE;
+export const SCENE_WORKSTATION_PROPORTION_CONTRACT = DESK_WORKSTATION_PROPORTION_MODE;
+export const SCENE_WORKSTATION_DESK_ASPECT_CONTRACT = DESK_SURFACE_ASPECT_RATIO;
+export const SCENE_INNER_WORKSTATION_ORIENTATION_CONTRACT = DESK_INNER_WORKSTATION_ORIENTATION_MODE;
+export const SCENE_PERIPHERAL_VISIBILITY_CONTRACT = DESK_PERIPHERAL_VISIBILITY_MODE;
+export const SCENE_LABEL_OCCLUSION_CONTRACT = DESK_LABEL_OCCLUSION_MODE;
+export const SCENE_AVATAR_PREVIEW_CONTRACT = DESK_AVATAR_PREVIEW_MODE;
+export const SCENE_AVATAR_PLACEMENT_CONTRACT = DESK_AVATAR_PLACEMENT_MODE;
+export const SCENE_AVATAR_PREVIEW_SOURCE = "poly-pizza-hyper-casual-local-preview";
 const FIT_SCRATCH = new Vector3();
 const DESK_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
   const [x, y, z] = slot.position;
@@ -51,10 +86,10 @@ const DESK_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
 const LABEL_SAMPLE_POINTS = FIXED_WORKSTATION_SLOTS.flatMap((slot) => {
   const [x, y, z] = slot.position;
   return [
-    [x - DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION + DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
-    [x + DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION + DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
-    [x - DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION - DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
-    [x + DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION - DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
+    [x + DESK_LABEL_X_OFFSET - DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION + DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
+    [x + DESK_LABEL_X_OFFSET + DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION + DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
+    [x + DESK_LABEL_X_OFFSET - DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION - DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
+    [x + DESK_LABEL_X_OFFSET + DESK_LABEL_WIDTH / 2, y + DESK_LABEL_ELEVATION - DESK_LABEL_HEIGHT / 2, z + DESK_LABEL_FORWARD_OFFSET],
   ] as const;
 });
 
@@ -196,6 +231,8 @@ export function AgentOfficeScene({
   onHover,
   onSelect,
 }: AgentOfficeSceneProps) {
+  const visibleAvatarDeskLabels = PREVIEW_AVATAR_DESK_LABELS;
+
   return (
     <div
       className="scene-canvas-shell"
@@ -208,6 +245,20 @@ export function AgentOfficeScene({
       data-scene-office-asset-model-count={String(OFFICE_ASSET_MODEL_COUNT)}
       data-scene-license-path={OFFICE_ASSET_LICENSE_PATH}
       data-scene-provenance-path={OFFICE_ASSET_PROVENANCE_PATH}
+      data-scene-avatar-preview-mode={SCENE_AVATAR_PREVIEW_CONTRACT}
+      data-scene-avatar-preview-source={SCENE_AVATAR_PREVIEW_SOURCE}
+      data-scene-avatar-preview-provenance-source={OFFICE_AVATAR_PREVIEW_SOURCE}
+      data-scene-avatar-preview-model-count={String(OFFICE_AVATAR_PREVIEW_MODEL_COUNT)}
+      data-scene-avatar-preview-license-path={OFFICE_AVATAR_PREVIEW_LICENSE_PATH}
+      data-scene-avatar-preview-provenance-path={OFFICE_AVATAR_PREVIEW_PROVENANCE_PATH}
+      data-scene-avatar-placement={SCENE_AVATAR_PLACEMENT_CONTRACT}
+      data-scene-avatar-preview-visible-marker={DESK_AVATAR_VISIBLE_MARKER}
+      data-scene-avatar-preview-visible-count={String(PREVIEW_AVATAR_DESK_LABELS.length)}
+      data-scene-avatar-preview-visible-desks={PREVIEW_AVATAR_DESK_LABELS.join(",")}
+      data-scene-avatar-preview-visible-layout={DESK_AVATAR_VISIBLE_LAYOUT_MODE}
+      data-scene-avatar-demo-stage={AVATAR_DEMO_STAGE_MARKER}
+      data-scene-avatar-demo-stage-mode={AVATAR_DEMO_STAGE_MODE}
+      data-scene-avatar-demo-stage-count={String(AVATAR_DEMO_STAGE_COUNT)}
       data-scene-label-orientation={DESK_LABEL_ORIENTATION_MODE}
       data-scene-label-layer={DESK_LABEL_LAYER_MODE}
       data-scene-label-plate={DESK_LABEL_PLATE_MODE}
@@ -219,24 +270,46 @@ export function AgentOfficeScene({
       data-scene-performance-mode={SCENE_PERFORMANCE_MODE}
       data-scene-style-profile={SCENE_STYLE_PROFILE}
       data-scene-style-reference={SCENE_STYLE_REFERENCE_MODE}
+      data-scene-workstation-orientation={SCENE_WORKSTATION_ORIENTATION_MODE}
+      data-scene-monitor-style={SCENE_MONITOR_STYLE_MODE}
+      data-scene-label-hierarchy={SCENE_LABEL_HIERARCHY_MODE}
+      data-scene-label-scale-hierarchy={SCENE_LABEL_SCALE_HIERARCHY_CONTRACT}
+      data-scene-monitor-detail={SCENE_MONITOR_DETAIL_CONTRACT}
+      data-scene-workstation-proportion={SCENE_WORKSTATION_PROPORTION_CONTRACT}
+      data-scene-desk-aspect={String(SCENE_WORKSTATION_DESK_ASPECT_CONTRACT)}
+      data-scene-inner-workstation-orientation={SCENE_INNER_WORKSTATION_ORIENTATION_CONTRACT}
+      data-scene-peripheral-visibility={SCENE_PERIPHERAL_VISIBILITY_CONTRACT}
+      data-scene-label-occlusion={SCENE_LABEL_OCCLUSION_CONTRACT}
       data-runtime-status={summary?.captureStatus ?? "waiting"}
       data-scene-fit-status="pending"
       data-scene-label-fit-status="pending"
     >
+      <OfficeAvatarDemoStage />
+      <div className="scene-avatar-preview-contract" aria-hidden="true">
+        {visibleAvatarDeskLabels.map((deskLabel) => (
+          <span
+            key={deskLabel}
+            data-avatar-preview-visible-node={DESK_AVATAR_VISIBLE_MARKER}
+            data-avatar-preview-visible-desk={deskLabel}
+            data-avatar-preview-visible-layout={DESK_AVATAR_VISIBLE_LAYOUT_MODE}
+          />
+        ))}
+      </div>
       <Canvas
+        id="main-scene-canvas"
         shadows={false}
         dpr={[1, 1.5]}
         frameloop={SCENE_FRAMELOOP_MODE}
         camera={{ position: [0, 10.5, 14.8], fov: CAMERA_FOV, near: 0.1, far: 60 }}
       >
-        <color attach="background" args={["#111a24"]} />
-        <fog attach="fog" args={["#111a24", 21, 38]} />
+        <color attach="background" args={["#08111c"]} />
+        <fog attach="fog" args={["#08111c", 21, 38]} />
         <ResponsiveCameraRig />
-        <ambientLight intensity={1.28} />
-        <hemisphereLight args={["#fde5bb", "#3f5973", 1.38]} />
-        <directionalLight position={[6, 13, 12]} intensity={1.42} color="#ffe6be" />
-        <directionalLight position={[-12, 9, 3]} intensity={0.84} color="#93d0ff" />
-        <directionalLight position={[0, 7, -10]} intensity={0.36} color="#ffb580" />
+        <ambientLight intensity={1.08} />
+        <hemisphereLight args={["#7ed6ff", "#15314a", 1.24]} />
+        <directionalLight position={[6, 13, 12]} intensity={0.94} color="#6cbcff" />
+        <directionalLight position={[-12, 9, 3]} intensity={1.22} color="#7ee5ff" />
+        <directionalLight position={[0, 7, -10]} intensity={0.22} color="#b86e41" />
         <OfficeShell summary={summary} />
         <DeskGrid
           agents={agents}

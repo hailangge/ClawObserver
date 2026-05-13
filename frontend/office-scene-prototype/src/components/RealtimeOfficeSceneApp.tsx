@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import type { AgentVisualState, SceneSummary } from "../agentVisualState";
-import { AgentOfficeScene } from "./AgentOfficeScene";
 import { AgentDetailPanel } from "./AgentDetailPanel";
 import { SceneStatusSummary } from "./SceneStatusSummary";
 import { findAgentById } from "../lib/sceneState";
 import { useSceneStore } from "../lib/store";
+import { WorkAdventurePreviewPanel } from "./WorkAdventurePreviewPanel";
+import { SceneRenderer, type SceneRendererMode } from "./SceneRenderer";
 
 type RealtimeOfficeSceneAppProps = {
   agents: AgentVisualState[];
@@ -19,6 +20,8 @@ type RealtimeOfficeSceneAppProps = {
   footerNote?: string;
   summaryTitle?: string;
   emptyDetailMessage?: string;
+  showWorkAdventurePreview?: boolean;
+  rendererMode?: SceneRendererMode;
 };
 
 export function RealtimeOfficeSceneApp({
@@ -34,6 +37,8 @@ export function RealtimeOfficeSceneApp({
   footerNote,
   summaryTitle,
   emptyDetailMessage,
+  showWorkAdventurePreview = false,
+  rendererMode = "legacy-3d",
 }: RealtimeOfficeSceneAppProps) {
   const {
     agents: storedAgents,
@@ -67,23 +72,24 @@ export function RealtimeOfficeSceneApp({
       <section className="prototype-layout prototype-layout--stacked">
         <div className="scene-top-stack">
           <SceneStatusSummary summary={summary} variant="wide" />
-          <div className="realtime-detail-strip">
-            <AgentDetailPanel
-              agent={selectedAgent}
-              title={summaryTitle ?? "Selected agent"}
-              emptyMessage={emptyDetailMessage ?? "Select a desk to inspect the current renderer-facing state."}
-            />
-          </div>
         </div>
         <section className="scene-panel">
           <div className="scene-canvas-panel">
-            <AgentOfficeScene
+            <SceneRenderer
+              mode={rendererMode}
               agents={effectiveAgents}
               summary={summary}
               hoveredAgentId={hoveredAgentId}
               selectedAgentId={selectedAgentId}
               onHover={setHoveredAgentId}
               onSelect={setSelectedAgentId}
+            />
+          </div>
+          <div className="realtime-detail-strip realtime-detail-strip--below-map" data-detail-strip-layout="below-map-stable-horizontal">
+            <AgentDetailPanel
+              agent={selectedAgent}
+              title={summaryTitle ?? "Selected agent"}
+              emptyMessage={emptyDetailMessage ?? "Select a desk to inspect the current renderer-facing state."}
             />
           </div>
           <footer className="scene-footer">
@@ -100,6 +106,7 @@ export function RealtimeOfficeSceneApp({
             emptyMessage={emptyDetailMessage ?? "Select a desk to inspect the current renderer-facing state."}
           />
         </div>
+        {showWorkAdventurePreview ? <WorkAdventurePreviewPanel /> : null}
       </section>
     </main>
   );

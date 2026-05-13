@@ -1,0 +1,59 @@
+{
+  "assetSet": "workadventure-office-map-preview",
+  "previewOnly": true,
+  "source": {
+    "repository": "https://github.com/workadventure/map-starter-kit",
+    "branch": "master",
+    "headCommit": "7ce4a7c87380094357bd608805313dc2c737007a",
+    "officeMapPath": "office.tmj",
+    "officeThumbnailPath": "office.png",
+    "tilesetPaths": [
+      "tilesets/WA_Special_Zones.png",
+      "tilesets/WA_Decoration.png",
+      "tilesets/WA_Miscellaneous.png",
+      "tilesets/WA_Other_Furniture.png",
+      "tilesets/WA_Room_Builder.png",
+      "tilesets/WA_Seats.png",
+      "tilesets/WA_Tables.png",
+      "tilesets/WA_Logo_Long.png",
+      "tilesets/WA_Exterior.png",
+      "tilesets/WA_User_Interface.png"
+    ]
+  },
+  "license": {
+    "assetsLicensePath": "licenses/LICENSE.assets",
+    "mapLicensePath": "licenses/LICENSE.map",
+    "usageScope": "workadventure-map-only",
+    "notes": [
+      "Official WorkAdventure starter-kit assets are bundled only for this preview-only tile-map office direction sample.",
+      "These assets are not approved here as general-purpose game art outside WorkAdventure map usage."
+    ]
+  },
+  "derivedPreviewContract": {
+    "mapWidthTiles": 31,
+    "mapHeightTiles": 21,
+    "tileSize": 32,
+    "visibleTileLayerCount": 11,
+    "walkableTileCount": 366,
+    "collisionTileCount": 285,
+    "startTileCount": 2,
+    "interactionZoneCount": 7,
+    "reusableAvatarPlaceholderCount": 4
+  },
+  "files": [
+    { "path": "licenses/LICENSE.assets", "bytes": 1200, "sha256": "a219f9d66592e13dc12ec4df061c47d4810ecbd9f013dc79a21f0d9bbe971034" },
+    { "path": "licenses/LICENSE.map", "bytes": 19606, "sha256": "e8655c04f967794440f124cfdf1b133ab8354633c4a34ff0979d2639080e6769" },
+    { "path": "map/office.png", "bytes": 108869, "sha256": "7f74ee09c720723085089aa797cce2f30c853dd8912562151d933e9af589e715" },
+    { "path": "map/office.tmj", "bytes": 41618, "sha256": "b9d23f929bc067c06c731a262102c4dadd7e48c7a36d059311b261896f544ece" },
+    { "path": "tilesets/WA_Decoration.png", "bytes": 21769, "sha256": "4db175d47f79fb6a0f3ecf71decc3f39fc996478c25bd1006b72d720b04d5363" },
+    { "path": "tilesets/WA_Exterior.png", "bytes": 363684, "sha256": "68ed8f71b29edc0f4b5b6c06c9e1a815d394df28dbd7511afbc97d561868796f" },
+    { "path": "tilesets/WA_Logo_Long.png", "bytes": 25208, "sha256": "cf146081b4d6f5ed699689e516f9a8db7d92ed720356fbc59cfcea0d6cbcb3de" },
+    { "path": "tilesets/WA_Miscellaneous.png", "bytes": 19029, "sha256": "1c324d292095758563cd1d4e022c8f8e47a453579f026d504e3e9439772d9ba7" },
+    { "path": "tilesets/WA_Other_Furniture.png", "bytes": 45519, "sha256": "c5e5addd7bcf6937aa5d285c2149b05ed92ef981174d1c53c842ee221a8bb528" },
+    { "path": "tilesets/WA_Room_Builder.png", "bytes": 45203, "sha256": "b2f0881def83c4a27a0a5f51738eb5e448c3ad139afc3196748581b5b5b66a02" },
+    { "path": "tilesets/WA_Seats.png", "bytes": 24730, "sha256": "f45b53f2e5326060008ba10ec1a854d1375cad85e805687b6330172e42df0c12" },
+    { "path": "tilesets/WA_Special_Zones.png", "bytes": 57992, "sha256": "6dd771fb0b72f3505b2250264b803141c710d85e1e4c36e790c1595802edb2a9" },
+    { "path": "tilesets/WA_Tables.png", "bytes": 38327, "sha256": "9f952c50e2a385dc84083c60c4904e9d33d855e0db9d3431fc038476a66f86d8" },
+    { "path": "tilesets/WA_User_Interface.png", "bytes": 13104, "sha256": "19d33055abaa8560345228891c55ca5e4c19446b45f5bab76aef12400b50f205" }
+  ]
+}

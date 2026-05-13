@@ -8,6 +8,7 @@ const state = {
   sceneRoleStyles: null,
   sceneLayout: null,
   sceneDeskAssignments: {},
+  currentRenderedPage: null,
 };
 
 const REALTIME_SCENE_SCRIPT_URL = "/assets/prototype/assets/realtime-scene-embed.js";
@@ -18,6 +19,7 @@ let realtimeSceneStyleLoaded = false;
 const LIVE_RETRY_DELAYS_MS = [250, 1000];
 const LIVE_RECOVERY_DELAY_MS = 3000;
 const DEFAULT_LIVE_REFRESH_SECONDS = 15;
+const MIN_AUTO_LIVE_REFRESH_SECONDS = 30;
 const LIVE_FETCH_TIMEOUT_MS = 4000;
 
 const palette = ["#64c0ff", "#5eb88d", "#d8aa5a", "#d16d73", "#7f9cf5", "#6fd0c4"];
@@ -267,9 +269,15 @@ function hasRealtimeSnapshot() {
   return Boolean(state.lastRealtimeSnapshot?.payload && state.lastRealtimeSnapshot?.sceneRoleStyles);
 }
 
-function scheduleLiveRefresh(refreshSeconds = DEFAULT_LIVE_REFRESH_SECONDS, showLoading = false) {
+function scheduleLiveRefresh(
+  refreshSeconds = DEFAULT_LIVE_REFRESH_SECONDS,
+  showLoading = false,
+  { respectMinimum = true } = {}
+) {
   clearLiveRefresh();
-  const delayMs = Math.max(normalizePositiveInteger(refreshSeconds, DEFAULT_LIVE_REFRESH_SECONDS), 1) * 1000;
+  const normalizedSeconds = normalizePositiveInteger(refreshSeconds, DEFAULT_LIVE_REFRESH_SECONDS);
+  const delayMs =
+    Math.max(normalizedSeconds, respectMinimum ? MIN_AUTO_LIVE_REFRESH_SECONDS : 1) * 1000;
   state.liveTimer = window.setTimeout(() => refreshPage({ showLoading }), delayMs);
 }
 
@@ -358,7 +366,7 @@ function handleRealtimeFailure(error) {
   if (hasRealtimeSnapshot()) {
     const capturedAt = state.lastRealtimeSnapshot.payload?.captured_at;
     setStatus(`Live degraded · retrying · last good ${formatDateTime(capturedAt)}`);
-    scheduleLiveRefresh(Math.max(Math.round(LIVE_RECOVERY_DELAY_MS / 1000), 1), false);
+    scheduleLiveRefresh(Math.max(Math.round(LIVE_RECOVERY_DELAY_MS / 1000), 1), false, { respectMinimum: false });
     return;
   }
   setStatus("Load failed");
@@ -367,7 +375,7 @@ function handleRealtimeFailure(error) {
       LIVE_RECOVERY_DELAY_MS / 1000
     )}s.`
   );
-  scheduleLiveRefresh(Math.max(Math.round(LIVE_RECOVERY_DELAY_MS / 1000), 1), true);
+  scheduleLiveRefresh(Math.max(Math.round(LIVE_RECOVERY_DELAY_MS / 1000), 1), true, { respectMinimum: false });
 }
 
 function setStatus(label) {
@@ -375,8 +383,10 @@ function setStatus(label) {
 }
 
 function renderRequestState(title, message) {
+  unmountRealtimeScene();
   const root = document.getElementById("page-root");
   root.setAttribute("aria-busy", "true");
+  state.currentRenderedPage = "loading";
   root.innerHTML = `
     <section class="panel loading-state">
       <h2>${escapeHtml(title)}</h2>
@@ -389,6 +399,7 @@ function renderFailureState(message) {
   unmountRealtimeScene();
   const root = document.getElementById("page-root");
   root.setAttribute("aria-busy", "false");
+  state.currentRenderedPage = "realtime-failure";
   root.innerHTML = `
     <section class="panel loading-state">
       <h2>Load failed</h2>
@@ -630,17 +641,79 @@ function formatLoadError(error) {
   return message ? `Last error: ${message}.` : "The live runtime endpoint did not return a usable payload.";
 }
 
-function renderRealtime(payload, sceneRoleStyles) {
-  document.getElementById("page-root").setAttribute("aria-busy", "false");
-  setStatus(`Live · ${formatDateTime(payload.captured_at)}`);
-  const root = document.getElementById("page-root");
-  unmountRealtimeScene();
-  const totalGatewayCount = lookupGatewayCount(payload.gateways, "total");
-  const gatewayExitCount = findGatewayCount(payload.gateways, "exits_today");
-  const activeAgents = [...payload.agent_sessions]
-    .filter((item) => item.active_sessions > 0)
-    .sort((left, right) => right.active_sessions - left.active_sessions || String(left.agent_name).localeCompare(String(right.agent_name)));
+function ensureRealtimePageShell(root) {
+  if (state.currentRenderedPage === "realtime") {
+    return;
+  }
+  root.innerHTML = `
+    <section id="realtime-metric-grid" class="metric-grid"></section>
+    <section class="panel panel-scene-shell" data-realtime-shell>
+      <div class="panel-header">
+        <div>
+          <h2>Realtime Claw Scene</h2>
+          <p class="panel-subtitle">Live WorkAdventure-style office scene with 12 fixed desks, readable single-person desk cards, official audited Woka subset markers, and truthful runtime-driven desk and board state.</p>
+        </div>
+        <p class="meta-line">Scene-first live view · WorkAdventure primary / React Three Fiber legacy</p>
+      </div>
+      <div id="realtime-r3f-scene-mount" class="realtime-r3f-scene-mount" data-scene-runtime-status=""></div>
+    </section>
+    <section class="panel-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Active Sessions by Agent</h2>
+            <p class="panel-subtitle">Only agents with active sessions greater than zero, sorted descending.</p>
+          </div>
+          <p class="meta-line">Live runtime</p>
+        </div>
+        <div id="realtime-active-agent-panel-body"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Delivery Queue Depth</h2>
+            <p class="panel-subtitle">The bundled OpenClaw adapter reads the real OpenClaw delivery queue on disk and reports pending versus failed queue-item counts. Runtime queue lanes are only used as a fallback when that delivery queue path is unavailable.</p>
+          </div>
+          <p class="meta-line">Live runtime</p>
+        </div>
+        <div id="realtime-queue-panel-body"></div>
+      </section>
+    </section>
+    <section class="panel-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Session States</h2>
+            <p class="panel-subtitle">Current session-state breakdown.</p>
+          </div>
+        </div>
+        <div id="realtime-session-state-panel-body"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Gateway Counts</h2>
+            <p class="panel-subtitle">Total count is always included. Today’s exit count prefers structured runtime data and otherwise uses a conservative systemd journal heuristic.</p>
+          </div>
+        </div>
+        <div id="realtime-gateway-panel-body"></div>
+      </section>
+    </section>
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Agent Session Table</h2>
+          <p class="panel-subtitle">Compact per-agent active and total session totals from the live source.</p>
+        </div>
+        <p id="realtime-agent-table-version" class="meta-line"></p>
+      </div>
+      <div id="realtime-agent-table-body"></div>
+    </section>
+  `;
+  state.currentRenderedPage = "realtime";
+}
 
+function renderRealtimePageFallback(root, payload, totalGatewayCount, gatewayExitCount, activeAgents) {
   root.innerHTML = `
     <section class="metric-grid">
       ${metricCard("Active sessions", payload.session_overview.active_sessions, "Live runtime state")}
@@ -653,9 +726,9 @@ function renderRealtime(payload, sceneRoleStyles) {
       <div class="panel-header">
         <div>
           <h2>Realtime Claw Scene</h2>
-          <p class="panel-subtitle">Live 3D office scene with 12 fixed desks, a reserved lounge zone, warmer friendlier office detail, and truthful runtime-driven desk and board state.</p>
+          <p class="panel-subtitle">Live WorkAdventure-style office scene with 12 fixed desks, readable single-person desk cards, official audited Woka subset markers, and truthful runtime-driven desk and board state.</p>
         </div>
-        <p class="meta-line">Scene-first live view · React Three Fiber</p>
+        <p class="meta-line">Scene-first live view · WorkAdventure primary / React Three Fiber legacy</p>
       </div>
       <div id="realtime-r3f-scene-mount" class="realtime-r3f-scene-mount" data-scene-runtime-status="${escapeAttribute(payload.capture_status)}"></div>
     </section>
@@ -717,8 +790,80 @@ function renderRealtime(payload, sceneRoleStyles) {
       ])}
     </section>
   `;
+  state.currentRenderedPage = "realtime";
+}
+
+function renderRealtime(payload, sceneRoleStyles) {
+  const root = document.getElementById("page-root");
+  root.setAttribute("aria-busy", "false");
+  setStatus(`Live · ${formatDateTime(payload.captured_at)}`);
+  const totalGatewayCount = lookupGatewayCount(payload.gateways, "total");
+  const gatewayExitCount = findGatewayCount(payload.gateways, "exits_today");
+  const activeAgents = [...payload.agent_sessions]
+    .filter((item) => item.active_sessions > 0)
+    .sort((left, right) => right.active_sessions - left.active_sessions || String(left.agent_name).localeCompare(String(right.agent_name)));
+
+  ensureRealtimePageShell(root);
+  const shellMount =
+    typeof root.querySelector === "function" ? root.querySelector("#realtime-r3f-scene-mount") : null;
+  if (
+    !shellMount ||
+    !document.getElementById("realtime-metric-grid") ||
+    !document.getElementById("realtime-active-agent-panel-body") ||
+    !document.getElementById("realtime-queue-panel-body") ||
+    !document.getElementById("realtime-session-state-panel-body") ||
+    !document.getElementById("realtime-gateway-panel-body") ||
+    !document.getElementById("realtime-agent-table-body")
+  ) {
+    renderRealtimePageFallback(root, payload, totalGatewayCount, gatewayExitCount, activeAgents);
+    void sceneRoleStyles;
+    mountRealtimeScene(document.getElementById("realtime-r3f-scene-mount"), payload);
+    return;
+  }
+  document.getElementById("realtime-metric-grid").innerHTML = `
+    ${metricCard("Active sessions", payload.session_overview.active_sessions, "Live runtime state")}
+    ${metricCard("Total sessions", payload.session_overview.total_sessions, "Live runtime state")}
+    ${metricCard("Idle sessions", payload.session_overview.idle_sessions, "Derived from total-active")}
+    ${metricCard("Gateways", totalGatewayCount, "Current known total")}
+    ${metricCard("Gateway exits today", gatewayExitCount ?? "Unavailable", "Structured runtime value when available, otherwise a systemd journal exit-event count")}
+  `;
+  document.getElementById("realtime-active-agent-panel-body").innerHTML = renderBarList(
+    activeAgents,
+    "agent_name",
+    "active_sessions",
+    "sessions"
+  );
+  document.getElementById("realtime-queue-panel-body").innerHTML = renderBarList(
+    payload.queue_lanes,
+    "lane_name",
+    "depth",
+    "queued",
+    formatQueueLabel
+  );
+  document.getElementById("realtime-session-state-panel-body").innerHTML = renderKeyValueList(
+    payload.session_states,
+    "state_name",
+    "session_count"
+  );
+  document.getElementById("realtime-gateway-panel-body").innerHTML = renderKeyValueList(
+    payload.gateways,
+    "gateway_group",
+    "gateway_count",
+    formatGatewayGroupLabel
+  );
+  document.getElementById("realtime-agent-table-version").textContent = payload.source_version;
+  document.getElementById("realtime-agent-table-body").innerHTML = renderTable(payload.agent_sessions, [
+    { key: "agent_name", label: "Agent" },
+    { key: "role_style_key", label: "Role style" },
+    { key: "active_sessions", label: "Active", mono: true },
+    { key: "total_sessions", label: "Total", mono: true },
+  ]);
+  const mount = document.getElementById("realtime-r3f-scene-mount") || shellMount;
+  if (mount) {
+    mount.setAttribute("data-scene-runtime-status", escapeAttribute(payload.capture_status));
+  }
   void sceneRoleStyles;
-  mountRealtimeScene(root.querySelector("#realtime-r3f-scene-mount"), payload);
+  mountRealtimeScene(mount, payload);
 }
 
 async function loadSceneRoleStyles(options = {}) {
@@ -1352,6 +1497,7 @@ function renderHistorical(payload) {
   unmountRealtimeScene();
   document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`${payload.mode_label} · ${displayRange(state.range)}`);
+  state.currentRenderedPage = "historical";
   const root = document.getElementById("page-root");
   if (!payload.points.length) {
     root.innerHTML = document.getElementById("empty-state-template").innerHTML;
@@ -1451,6 +1597,7 @@ function renderTokens(payload) {
   unmountRealtimeScene();
   document.getElementById("page-root").setAttribute("aria-busy", "false");
   setStatus(`${payload.selection_label} · ${displayRange(state.range)}`);
+  state.currentRenderedPage = "tokens";
   const root = document.getElementById("page-root");
   if (!payload.daily_records.length) {
     root.innerHTML = document.getElementById("empty-state-template").innerHTML;
@@ -1494,6 +1641,9 @@ function ensureRealtimeSceneScript() {
   if (window.ClawObserverRealtimeScene) {
     return Promise.resolve(window.ClawObserverRealtimeScene);
   }
+  if (!document?.head || typeof document.head.appendChild !== "function") {
+    return Promise.resolve(null);
+  }
   if (realtimeSceneScriptPromise) {
     return realtimeSceneScriptPromise;
   }
@@ -1515,14 +1665,24 @@ function ensureRealtimeSceneScript() {
 }
 
 function ensureRealtimeSceneStyles() {
-  if (realtimeSceneStyleLoaded || document.querySelector(`link[data-realtime-scene-style="${REALTIME_SCENE_STYLES_URL}"]`)) {
+  if (
+    realtimeSceneStyleLoaded ||
+    document.querySelector(`link[data-realtime-scene-style="${REALTIME_SCENE_STYLES_URL}"]`)
+  ) {
     realtimeSceneStyleLoaded = true;
+    return;
+  }
+  if (!document?.head || typeof document.head.appendChild !== "function") {
     return;
   }
   const link = document.createElement("link");
   link.rel = "stylesheet";
   link.href = REALTIME_SCENE_STYLES_URL;
-  link.dataset.realtimeSceneStyle = REALTIME_SCENE_STYLES_URL;
+  if (link.dataset) {
+    link.dataset.realtimeSceneStyle = REALTIME_SCENE_STYLES_URL;
+  } else {
+    link.setAttribute("data-realtime-scene-style", REALTIME_SCENE_STYLES_URL);
+  }
   document.head.appendChild(link);
   realtimeSceneStyleLoaded = true;
 }
@@ -1534,6 +1694,9 @@ function mountRealtimeScene(target, payload) {
   ensureRealtimeSceneStyles();
   ensureRealtimeSceneScript()
     .then((sceneApi) => {
+      if (!sceneApi) {
+        return;
+      }
       if (!target.isConnected || state.page !== "realtime") {
         return;
       }

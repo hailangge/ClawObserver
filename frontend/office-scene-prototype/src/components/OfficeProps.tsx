@@ -31,28 +31,28 @@ function Planter({ position }: { position: readonly [number, number, number] }) 
       <OfficeAssetModel
         assetKey="pottedPlant"
         scale={[3.74, 1.52, 3.74]}
-        appearance={{ tint: "#86ba76", tintStrength: 0.18 }}
+        appearance={{ tint: "#5ea7da", tintStrength: 0.92 }}
         userData={{ sceneRole: "planter-model", assetBacked: true }}
         fallback={
           <>
             <mesh>
               <boxGeometry args={[1.02, 0.56, 1.02]} />
-              <meshStandardMaterial color="#a17352" roughness={0.9} />
+              <meshStandardMaterial color="#3b5166" roughness={0.9} />
             </mesh>
             <mesh position={[0, 0.6, 0]}>
               <sphereGeometry args={[0.5, 16, 16]} />
-              <meshStandardMaterial color="#7fb66f" roughness={0.92} />
+              <meshStandardMaterial color="#5b91c4" roughness={0.92} />
             </mesh>
             <mesh position={[0.22, 0.96, 0.1]} rotation={[0.1, 0, 0.25]}>
               <cylinderGeometry args={[0.08, 0.1, 0.48, 10]} />
-              <meshStandardMaterial color="#93c17f" roughness={0.86} />
+              <meshStandardMaterial color="#79dfff" roughness={0.86} />
             </mesh>
           </>
         }
       />
       <mesh position={[0, -0.06, 0]}>
         <cylinderGeometry args={[0.58, 0.64, 0.1, 18]} />
-        <meshStandardMaterial color="#f4d6a4" roughness={0.7} />
+        <meshStandardMaterial color="#162c42" roughness={0.7} />
       </mesh>
     </group>
   );
@@ -66,15 +66,15 @@ function Partition({ position }: { position: readonly [number, number, number] }
     >
       <mesh>
         <boxGeometry args={[0.18, 1.32, 2.42]} />
-        <meshStandardMaterial color="#eef0e8" roughness={0.9} />
+        <meshStandardMaterial color="#24394f" roughness={0.9} />
       </mesh>
       <mesh position={[0, 0.7, 0]}>
         <boxGeometry args={[0.24, 0.14, 2.56]} />
-        <meshStandardMaterial color="#8cb5c4" roughness={0.74} />
+        <meshStandardMaterial color="#5ecfff" roughness={0.74} emissive="#2289b6" emissiveIntensity={0.08} />
       </mesh>
       <mesh position={[0, -0.66, 0]}>
         <boxGeometry args={[0.26, 0.08, 2.56]} />
-        <meshStandardMaterial color="#f5d39d" roughness={0.72} />
+        <meshStandardMaterial color="#40698f" roughness={0.72} />
       </mesh>
     </group>
   );
@@ -87,17 +87,17 @@ function StorageBay({ x }: { x: number }) {
         assetKey="bookcaseOpen"
         rotation={[0, Math.PI / 2, 0]}
         scale={[4.9, 2.12, 2.28]}
-        appearance={{ tint: "#c98d63", tintStrength: 0.22 }}
+        appearance={{ tint: "#496887", tintStrength: 1.0 }}
         userData={{ sceneRole: "bookcase-model", assetBacked: true }}
         fallback={
           <>
             <mesh>
               <boxGeometry args={[1.96, 1.82, 0.48]} />
-              <meshStandardMaterial color="#b2774f" roughness={0.86} />
+              <meshStandardMaterial color="#35516b" roughness={0.86} />
             </mesh>
             <mesh position={[0, 0.52, 0.27]}>
               <boxGeometry args={[1.52, 0.82, 0.04]} />
-              <meshStandardMaterial color="#f3e6d2" roughness={0.8} />
+              <meshStandardMaterial color="#16273a" roughness={0.8} />
             </mesh>
           </>
         }
@@ -109,19 +109,19 @@ function StorageBay({ x }: { x: number }) {
           position={[offset, 0.08 + index * 0.18, 0.11]}
           rotation={[0, Math.PI / 2, 0]}
           scale={[1.34, 1.14, 1.28]}
-          appearance={{ tint: index === 1 ? "#4f9dd0" : index === 2 ? "#f0a16e" : "#efcd78", tintStrength: 0.24 }}
+          appearance={{ tint: index === 1 ? "#56c8ff" : index === 2 ? "#b8794f" : "#7a9bc0", tintStrength: 0.92 }}
           userData={{ sceneRole: "bookcase-books-model", assetBacked: true }}
           fallback={
             <mesh position={[offset, -0.22 + index * 0.14, 0.22]}>
               <boxGeometry args={[0.3, 0.14, 0.28]} />
-              <meshStandardMaterial color={index === 1 ? "#4f9dd0" : index === 2 ? "#f0a16e" : "#efcd78"} roughness={0.78} />
+              <meshStandardMaterial color={index === 1 ? "#56c8ff" : index === 2 ? "#b8794f" : "#7a9bc0"} roughness={0.78} />
             </mesh>
           }
         />
       ))}
       <mesh position={[0, -0.02, 0.44]}>
         <capsuleGeometry args={[0.14, 1.56, 4, 10]} rotation={[0, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#f6e1b1" roughness={0.72} />
+        <meshStandardMaterial color="#5bd4ff" roughness={0.72} emissive="#2a96c2" emissiveIntensity={0.1} />
       </mesh>
     </group>
   );
@@ -134,18 +134,18 @@ function LoungeTable({ x }: { x: number }) {
         assetKey="tableCoffee"
         rotation={[0, Math.PI / 2, 0]}
         scale={[3.52, 1.34, 2.82]}
-        appearance={{ tint: "#82abc4", tintStrength: 0.22 }}
+        appearance={{ tint: "#50749b", tintStrength: 1.0 }}
         userData={{ sceneRole: "lounge-table-model", assetBacked: true }}
         fallback={
           <>
             <mesh>
               <boxGeometry args={[2.28, 0.22, 1.04]} />
-              <meshStandardMaterial color="#7fb1c7" roughness={0.76} />
+              <meshStandardMaterial color="#43678c" roughness={0.76} />
             </mesh>
             {[-0.82, 0.82].map((legX) => (
               <mesh key={legX} position={[legX, -0.44, 0]}>
                 <boxGeometry args={[0.16, 0.82, 0.16]} />
-                <meshStandardMaterial color="#6f8ba0" roughness={0.72} />
+                <meshStandardMaterial color="#5c7792" roughness={0.72} />
               </mesh>
             ))}
           </>
@@ -153,15 +153,15 @@ function LoungeTable({ x }: { x: number }) {
       />
       <mesh position={[0, 0.16, 0]}>
         <boxGeometry args={[1.46, 0.08, 0.74]} />
-        <meshStandardMaterial color="#f8dfb0" roughness={0.72} />
+        <meshStandardMaterial color="#1b2f42" roughness={0.72} />
       </mesh>
       <mesh position={[-0.38, 0.24, 0.12]}>
         <capsuleGeometry args={[0.08, 0.22, 4, 8]} />
-        <meshStandardMaterial color="#ed8e67" roughness={0.68} />
+        <meshStandardMaterial color="#b07046" roughness={0.68} />
       </mesh>
       <mesh position={[0.42, 0.24, -0.1]}>
         <capsuleGeometry args={[0.08, 0.22, 4, 8]} />
-        <meshStandardMaterial color="#7cc4d3" roughness={0.68} />
+        <meshStandardMaterial color="#61d8ff" roughness={0.68} />
       </mesh>
     </group>
   );
@@ -172,17 +172,17 @@ function Pinboard({ x }: { x: number }) {
     <group position={[x, 1.5, -6.56]}>
       <mesh>
         <boxGeometry args={[2.34, 1.34, 0.1]} />
-        <meshStandardMaterial color="#f7f1e7" roughness={0.8} />
+        <meshStandardMaterial color="#17314a" roughness={0.8} />
       </mesh>
       {[-0.58, 0, 0.58].map((offset, index) => (
         <mesh key={offset} position={[offset, 0.05 * index, 0.06]}>
           <planeGeometry args={[0.38, 0.24]} />
-          <meshStandardMaterial color={index === 1 ? "#f4cd73" : index === 2 ? "#ef9a71" : "#89bfe0"} roughness={0.68} />
+          <meshStandardMaterial color={index === 1 ? "#63d8ff" : index === 2 ? "#af7447" : "#4d7ba8"} roughness={0.68} />
         </mesh>
       ))}
       <mesh position={[0.72, -0.32, 0.06]}>
         <circleGeometry args={[0.08, 14]} />
-        <meshStandardMaterial color="#7fd286" roughness={0.62} />
+        <meshStandardMaterial color="#6ce0ff" roughness={0.62} />
       </mesh>
     </group>
   );
@@ -193,27 +193,27 @@ function CoffeeStation() {
     <group position={[7.35, 1.08, -4.82]}>
       <mesh>
         <boxGeometry args={[2.82, 0.96, 1.04]} />
-        <meshStandardMaterial color="#a56c48" roughness={0.9} />
+        <meshStandardMaterial color="#334d64" roughness={0.9} />
       </mesh>
       <mesh position={[0, 0.58, 0]}>
         <boxGeometry args={[2.94, 0.12, 1.14]} />
-        <meshStandardMaterial color="#f0d3ad" roughness={0.72} />
+        <meshStandardMaterial color="#1a3046" roughness={0.72} />
       </mesh>
       <mesh position={[-0.56, 0.72, 0]}>
         <boxGeometry args={[0.66, 0.5, 0.5]} />
-        <meshStandardMaterial color="#3b556e" roughness={0.58} metalness={0.16} />
+        <meshStandardMaterial color="#29415a" roughness={0.58} metalness={0.16} />
       </mesh>
       <mesh position={[0.36, 0.58, -0.08]}>
         <cylinderGeometry args={[0.13, 0.13, 0.22, 18]} />
-        <meshStandardMaterial color="#f6f0e4" roughness={0.86} />
+        <meshStandardMaterial color="#6bdfff" roughness={0.86} />
       </mesh>
       <mesh position={[0.68, 0.58, 0.08]}>
         <cylinderGeometry args={[0.13, 0.13, 0.22, 18]} />
-        <meshStandardMaterial color="#f6f0e4" roughness={0.86} />
+        <meshStandardMaterial color="#6bdfff" roughness={0.86} />
       </mesh>
       <mesh position={[-0.84, -0.16, 0.4]}>
         <boxGeometry args={[0.3, 0.28, 0.3]} />
-        <meshStandardMaterial color="#7ec4d7" roughness={0.72} />
+        <meshStandardMaterial color="#b67646" roughness={0.72} />
       </mesh>
     </group>
   );
@@ -228,7 +228,7 @@ function WallArc({ x, z, color }: { x: number; z: number; color: string }) {
       </mesh>
       <mesh position={[0, -0.52, 0]}>
         <boxGeometry args={[1.34, 0.14, 0.12]} />
-        <meshStandardMaterial color="#f6dfba" roughness={0.66} />
+        <meshStandardMaterial color="#244360" roughness={0.66} />
       </mesh>
     </group>
   );
@@ -260,11 +260,11 @@ export function OfficeProps({ compactMode = true }: OfficePropsProps) {
         <>
           <mesh position={[0, 0.18, 4.58]}>
             <boxGeometry args={[7.8, 0.22, 0.42]} />
-            <meshStandardMaterial color="#9bb2c2" roughness={0.8} />
+            <meshStandardMaterial color="#3f6488" roughness={0.8} />
           </mesh>
           <mesh position={[0, 0.32, 4.82]}>
             <boxGeometry args={[6.4, 0.14, 0.18]} />
-            <meshStandardMaterial color="#f8e2bb" roughness={0.7} />
+            <meshStandardMaterial color="#63dcff" roughness={0.7} emissive="#299bc5" emissiveIntensity={0.12} />
           </mesh>
         </>
       ) : null}

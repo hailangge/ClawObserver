@@ -6,6 +6,9 @@ import { useSceneStore } from "../lib/store";
 vi.mock("./AgentOfficeScene", () => ({
   AgentOfficeScene: () => <div data-testid="scene-canvas-mock">scene</div>,
 }));
+vi.mock("./WorkAdventureScene", () => ({
+  WorkAdventureScene: () => <div data-testid="scene-canvas-mock">scene</div>,
+}));
 
 const summary = {
   capturedAt: "2026-05-11T09:30:00Z",
@@ -53,9 +56,12 @@ describe("EmbeddedRealtimeScenePanel", () => {
 
     const summaryPanel = container.querySelector("[data-summary-panel]");
     const canvasPanel = container.querySelector(".scene-canvas-panel");
+    const detailStrip = container.querySelector("[data-detail-strip-layout]");
     expect(summaryPanel?.getAttribute("data-summary-variant")).toBe("wide");
     expect(summaryPanel?.compareDocumentPosition(canvasPanel as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelectorAll("[data-detail-state]")).toHaveLength(2);
+    expect(detailStrip?.getAttribute("data-detail-strip-layout")).toBe("below-map-stable-horizontal");
+    expect(canvasPanel?.compareDocumentPosition(detailStrip as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("scene")).toBeTruthy();
   });
 });

@@ -1,0 +1,27 @@
+{
+  "source": {
+    "name": "Hyper Casual Character",
+    "author": "J-Toastie",
+    "source_page_url": "https://poly.pizza/m/6kFNcL9OnO",
+    "direct_glb_url": "https://static.poly.pizza/8af015a7-3b49-4898-8810-1beb36e796c5.glb",
+    "license": {
+      "spdx": "CC-BY-3.0",
+      "label": "Creative Commons Attribution 3.0",
+      "source_license_url": "https://creativecommons.org/licenses/by/3.0/",
+      "local_license_path": "licenses/Creative-Commons-Attribution-3.0.txt"
+    },
+    "imported_at": "2026-05-11",
+    "preview_only": true,
+    "notes": "Temporary office-scene avatar preview for ClawObserver desk readability only; not the final avatar or animation system.",
+    "modified_for_clawobserver": true
+  },
+  "curated_models": [
+    {
+      "key": "hyper-casual-character",
+      "glb_path": "models/hyper-casual-character.glb",
+      "glb_sha256": "0c6670c39fbcc1c293595f854bd9932b1caac667b14521b329bfdecf53898ff2",
+      "approximate_glb_bytes": 201360,
+      "usage": "Rendered as 4 tinted seated preview instances at selected desks."
+    }
+  ]
+}

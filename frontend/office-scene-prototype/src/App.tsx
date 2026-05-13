@@ -85,11 +85,13 @@ export default function App() {
       loadSource={loadSource}
       eyebrow="ClawObserver prototype"
       title="Agent Office Scene"
-      subtitle="Production-bound React Three Fiber office scene with exactly 12 fixed desks and a reserved lounge zone inspired by static_scene.jpg."
+      subtitle="Retained legacy React Three Fiber office scene route with exactly 12 fixed desks and a reserved lounge zone for ongoing alternate-style validation."
       backLinkHref="/"
       backLinkLabel="Back to dashboard"
-      footerNote="Prototype route uses the same desk/status contract as the production Realtime scene."
+      footerNote="Prototype route keeps the legacy 3D renderer alive while the production embed now defaults to the WorkAdventure-style office surface."
       summaryTitle="Selected agent"
+      showWorkAdventurePreview
+      rendererMode="legacy-3d"
     />
   );
 }

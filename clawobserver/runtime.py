@@ -326,6 +326,11 @@ class LiveRuntimeAdapter:
                     agent_name=str(item.get("agent_name", "unknown")),
                     active_sessions=_to_int(item.get("active_sessions")),
                     total_sessions=_to_int(item.get("total_sessions")),
+                    visual_status=(
+                        str(item.get("visual_status") or item.get("visualStatus")).strip()
+                        if item.get("visual_status") or item.get("visualStatus")
+                        else None
+                    ),
                     role_style_key=(
                         str(item.get("role_style_key") or item.get("roleStyleKey")).strip()
                         if item.get("role_style_key") or item.get("roleStyleKey")

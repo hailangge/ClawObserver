@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clawobserver"
-version = "0.1.0"
+version = "0.3.0"
 description = "Lightweight runtime-first monitoring for OpenClaw."
 requires-python = ">=3.12"
 

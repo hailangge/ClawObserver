@@ -786,6 +786,176 @@ class RealtimeSceneLogicTests(unittest.TestCase):
         self.assertFalse(payload["htmlHasFailure"])
         self.assertEqual(payload["recoveryDelay"], 3000)
 
+    def test_realtime_auto_refresh_enforces_sane_minimum_floor(self) -> None:
+        app_js_path = (
+            Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"
+        )
+        script = textwrap.dedent(
+            f"""
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync({json.dumps(str(app_js_path))}, "utf8");
+            const timerDelays = [];
+            const context = {{
+              console,
+              setTimeout: (fn, delay) => {{ timerDelays.push(delay || 0); return timerDelays.length; }},
+              clearTimeout: () => {{}},
+              AbortController,
+              window: {{
+                setTimeout: (fn, delay) => {{ timerDelays.push(delay || 0); return timerDelays.length; }},
+                clearTimeout: () => {{}},
+              }},
+              document: {{
+                addEventListener: () => {{}},
+                querySelectorAll: () => [],
+                querySelector: () => null,
+                getElementById: () => ({{ addEventListener: () => {{}}, setAttribute: () => {{}}, querySelector: () => null }}),
+                createElement: () => ({{ className: "", hidden: true, appendChild: () => {{}} }}),
+              }},
+              fetch: async () => ({{ ok: true, json: async () => ({{}}) }}),
+            }};
+            context.global = context;
+            vm.createContext(context);
+            vm.runInContext(source, context);
+            vm.runInContext("scheduleLiveRefresh(1, false)", context);
+            console.log(JSON.stringify({{
+              scheduledDelay: timerDelays[timerDelays.length - 1],
+            }}));
+            """
+        )
+        output = subprocess.check_output(["node", "-e", script], text=True)
+        payload = json.loads(output)
+
+        self.assertEqual(payload["scheduledDelay"], 30000)
+
+    def test_realtime_second_success_keeps_scene_mount_and_updates_in_place(self) -> None:
+        app_js_path = (
+            Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"
+        )
+        script = textwrap.dedent(
+            f"""
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const source = fs.readFileSync({json.dumps(str(app_js_path))}, "utf8");
+            const elements = {{}};
+            const pageRoot = {{
+              innerHTML: "",
+              attrs: {{}},
+              setAttribute(name, value) {{ this.attrs[name] = value; }},
+              querySelector(selector) {{
+                if (selector === "#realtime-r3f-scene-mount") {{
+                  return elements["realtime-r3f-scene-mount"] || null;
+                }}
+                return null;
+              }},
+              getBoundingClientRect: () => ({{ left: 0, top: 0, width: 100, height: 100 }}),
+            }};
+            elements["status-pill"] = {{ textContent: "" }};
+            elements["page-root"] = pageRoot;
+            elements["capture-button"] = {{ addEventListener: () => {{}} }};
+            const createNode = (id) => {{
+              const node = {{
+                id,
+                innerHTML: "",
+                textContent: "",
+                attrs: {{}},
+                isConnected: true,
+                setAttribute(name, value) {{ this.attrs[name] = value; }},
+                getAttribute(name) {{ return this.attrs[name] ?? null; }},
+                querySelector: () => null,
+                addEventListener: () => {{}},
+              }};
+              elements[id] = node;
+              return node;
+            }};
+            let mountNodeCreationCount = 0;
+            let renderCalls = 0;
+            const context = {{
+              console,
+              setTimeout: () => 1,
+              clearTimeout: () => {{}},
+              AbortController,
+              window: {{
+                setTimeout: () => 1,
+                clearTimeout: () => {{}},
+                ClawObserverRealtimeScene: {{
+                  render: (target) => {{
+                    renderCalls += 1;
+                    target.renderCount = (target.renderCount || 0) + 1;
+                  }},
+                  unmount: () => {{
+                    throw new Error("unexpected unmount");
+                  }},
+                }},
+              }},
+              document: {{
+                addEventListener: () => {{}},
+                querySelectorAll: () => [],
+                querySelector: () => null,
+                getElementById: (id) => elements[id] || null,
+                createElement: () => ({{ className: "", hidden: true, appendChild: () => {{}} }}),
+              }},
+              fetch: async () => ({{ ok: true, json: async () => ({{}}) }}),
+            }};
+            context.global = context;
+            vm.createContext(context);
+            vm.runInContext(source, context);
+            const originalRenderRealtimePageFallback = vm.runInContext("renderRealtimePageFallback", context);
+            context.renderRealtimePageFallback = function(root, payload, totalGatewayCount, gatewayExitCount, activeAgents) {{
+              originalRenderRealtimePageFallback(root, payload, totalGatewayCount, gatewayExitCount, activeAgents);
+              if (!elements["realtime-r3f-scene-mount"]) {{
+                mountNodeCreationCount += 1;
+                const mount = createNode("realtime-r3f-scene-mount");
+                const version = createNode("realtime-agent-table-version");
+                version.textContent = payload.source_version;
+                mount.attrs["data-scene-runtime-status"] = payload.capture_status;
+              }} else {{
+                elements["realtime-agent-table-version"].textContent = payload.source_version;
+                elements["realtime-r3f-scene-mount"].attrs["data-scene-runtime-status"] = payload.capture_status;
+              }}
+            }};
+            const payloadA = {{
+              captured_at: "2026-05-13T01:00:00Z",
+              source_version: "test-runtime-a",
+              capture_status: "ok",
+              session_overview: {{ active_sessions: 1, total_sessions: 2, idle_sessions: 1 }},
+              agent_sessions: [{{ agent_name: "planner", active_sessions: 1, total_sessions: 1 }}],
+              session_states: [],
+              queue_lanes: [],
+              gateways: [{{ gateway_group: "total", gateway_count: 1 }}],
+            }};
+            const payloadB = {{
+              captured_at: "2026-05-13T01:00:30Z",
+              source_version: "test-runtime-b",
+              capture_status: "ok",
+              session_overview: {{ active_sessions: 2, total_sessions: 3, idle_sessions: 1 }},
+              agent_sessions: [{{ agent_name: "planner", active_sessions: 2, total_sessions: 2 }}],
+              session_states: [],
+              queue_lanes: [],
+              gateways: [{{ gateway_group: "total", gateway_count: 2 }}],
+            }};
+            vm.runInContext("renderRealtime(" + JSON.stringify(payloadA) + ", null)", context);
+            const firstMount = elements["realtime-r3f-scene-mount"];
+            vm.runInContext("renderRealtime(" + JSON.stringify(payloadB) + ", null)", context);
+            console.log(JSON.stringify({{
+              sameMountNode: firstMount === elements["realtime-r3f-scene-mount"],
+              mountNodeCreationCount,
+              renderCalls,
+              latestVersion: elements["realtime-agent-table-version"].textContent,
+              latestRuntimeStatus: elements["realtime-r3f-scene-mount"].attrs["data-scene-runtime-status"] || null,
+            }}));
+            """
+        )
+        output = subprocess.check_output(["node", "-e", script], text=True)
+        payload = json.loads(output)
+
+        self.assertTrue(payload["sameMountNode"])
+        self.assertEqual(payload["mountNodeCreationCount"], 1)
+        self.assertEqual(payload["latestVersion"], "test-runtime-b")
+        self.assertEqual(payload["latestRuntimeStatus"], "ok")
+
     def test_stale_aborted_realtime_failure_does_not_replace_current_page(self) -> None:
         app_js_path = (
             Path(__file__).resolve().parents[1] / "clawobserver" / "static" / "app.js"

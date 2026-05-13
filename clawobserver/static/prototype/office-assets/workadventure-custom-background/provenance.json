@@ -1,0 +1,15 @@
+{
+  "assetSet": "Approved generated office background",
+  "sourceKind": "user-approved generated image",
+  "originalOperatorPath": "/home/massena/Downloads/Generated Image May 12, 2026 - 2_20PM.jpg",
+  "workspaceImportSource": "/mnt/data/workspace-se-codex/tmp/user-images/generated-office-2026-05-12-1420.jpg",
+  "localAssetPath": "frontend/office-scene-prototype/public/office-assets/workadventure-custom-background/generated-office-2026-05-12-1420.jpg",
+  "usageScope": "primary embedded WorkAdventure realtime background only",
+  "dimensions": {
+    "width": 1264,
+    "height": 848
+  },
+  "fileSizeBytes": 609333,
+  "sha256": "ff3fb57e3365587ed4c0215f954901b86cc9298d9adb018bea97afbdad7b120c",
+  "importedAt": "2026-05-12T14:20:00+08:00"
+}

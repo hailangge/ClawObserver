@@ -1,11 +1,11 @@
 {
   "name": "clawobserver-office-scene-prototype",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && mkdir -p ../../clawobserver/static/prototype/office-assets && cp -R public/office-assets/poly-pizza-hyper-casual-preview ../../clawobserver/static/prototype/office-assets/ && cp -R public/office-assets/workadventure-preview ../../clawobserver/static/prototype/office-assets/ && cp -R public/office-assets/workadventure-woka-subset ../../clawobserver/static/prototype/office-assets/ && cp -R public/office-assets/workadventure-custom-background ../../clawobserver/static/prototype/office-assets/",
     "test": "vitest run",
     "smoke:browser": "node ./scripts/prototypeBrowserSmoke.mjs"
   },

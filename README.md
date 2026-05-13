@@ -1,79 +1,135 @@
 # ClawObserver
 
-ClawObserver is a lightweight, runtime-first monitoring application for OpenClaw. It keeps the approved OpenClaw monitoring scope, replaces the prior heavy SigNoz deployment path with a small host-native Python service, and stores low-frequency historical snapshots in a local SQLite database.
+ClawObserver is a lightweight, runtime-first monitoring application for OpenClaw. It serves a local web UI for current runtime state, archives sampled snapshots into SQLite, and deploys as a user-level `systemd` web service plus capture timer.
 
-This repository contains both the runnable implementation and the internal product documents that define its scope and operating model.
+It is not a general observability stack. It does not ship a metrics backend, log explorer, trace store, or minute-resolution history.
 
-## What ClawObserver is
+The product scope and implementation record live in:
 
-ClawObserver is designed for operators who need:
-
-- a local dashboard for current OpenClaw runtime state
-- a small historical archive collected on a 30-minute cadence
-- token usage rollups based on archived daily counters
-- a deployment model that stays close to the host by using Python plus user-level `systemd`
-
-It is not a general observability platform. It does not ship a metrics backend, log explorer, or trace system.
+- `specification/requirements.md`
+- `specification/design.md`
+- `specification/tasks.md`
 
 ## Architecture
 
-ClawObserver intentionally separates live state from history:
+ClawObserver keeps live and historical data separate on purpose:
 
-1. The live path reads current runtime state on demand from an OpenClaw runtime adapter.
-2. The archive path stores normalized snapshots in SQLite.
-3. The web UI serves both the realtime overview and the archive-backed historical pages from the same local process.
-4. A `systemd --user` timer triggers archive capture every 30 minutes.
+1. Live views read current runtime state from an OpenClaw adapter.
+2. Historical views read archived snapshots from a local SQLite database.
+3. A user-level `systemd` timer runs archive capture every 30 minutes.
+4. The same Python app serves the Realtime, History, and Token Statistics pages.
 
-This split matters because a 30-minute archive cannot honestly reproduce minute-level historical telemetry. ClawObserver keeps the semantics explicit instead of replaying archive data as if it were live.
-
-## Features and scope
-
-The current implementation covers the approved monitoring scope:
-
-- realtime overview of total sessions, active sessions, derived idle sessions, truthful queue/backlog state, per-agent session counts, gateway counts, and today’s gateway exit count
-- historical overview panels derived from archived snapshots, including gateway reliability history plus Persistent vs One-Shot session comparison
-- token statistics based on daily end-of-day archive selection, including cache-hit ratio when the runtime exposes cache counters cleanly
-- local SQLite storage with no external database dependency
-- host-native user-level `systemd` deployment
-- branded header artwork, a central deep-tech realtime agent scene anchored to the owner reference image, and operator-oriented historical charts with visible Y-axis labels plus hover tooltips
-
-The internal scope documents remain in this repo:
-
-- `requirements.md` for product scope and acceptance criteria
-- `design.md` for architecture, storage, and deployment design
-- `tasks.md` for implementation milestones and validation notes
+This avoids pretending that a 30-minute archive can reproduce minute-level telemetry.
 
 ## Prerequisites
 
-ClawObserver is intentionally small, but operators should have the following available on the target host:
-
 - Linux with `systemd --user`
 - Python 3.12 or newer
-- a working OpenClaw runtime source if you want real data
-- access to the repository checkout on the target machine
+- A checkout of this repository on the target host
+- For real OpenClaw data, a working `openclaw` CLI in `PATH` or at `~/.npm-global/bin/openclaw`
 
-For the bundled runtime adapter, the expected real-data prerequisite is the `openclaw` CLI in `PATH` or at `~/.npm-global/bin/openclaw`.
+## Installation
 
-## Quick start
-
-For a local manual run from the repository root:
+The primary operator entrypoint is:
 
 ```bash
-python3 -m clawobserver serve
+./scripts/install.sh
 ```
 
-Open the default local URL:
+What it does:
+
+- renders `deploy/systemd/clawobserver.service` into `~/.config/systemd/user/clawobserver.service`
+- renders `deploy/systemd/clawobserver-capture.service` into `~/.config/systemd/user/clawobserver-capture.service`
+- installs `deploy/systemd/clawobserver-capture.timer` into `~/.config/systemd/user/clawobserver-capture.timer`
+- creates `~/.config/clawobserver/clawobserver.env` on first install
+- preserves an existing env file on reruns
+- runs `systemctl --user daemon-reload`
+- enables and starts `clawobserver.service`
+- enables and starts `clawobserver-capture.timer`
+- prints status, journal, timer, and management commands
+
+Compatibility wrappers:
+
+- `./scripts/deploy.sh` forwards to `./scripts/install.sh`
+- `./scripts/install_user_service.sh` forwards to `./scripts/install.sh`
+
+After install, the default local URL is:
 
 ```text
 http://127.0.0.1:8420/
 ```
 
-The UI header ships with a bundled ClawObserver logo: an OpenClaw-style lobster holding a magnifying glass with an enlarged magnified eye. The visual direction stays deep-tech and restrained rather than decorative.
+## Configuration
 
-Capture one archive snapshot manually:
+The installed env file is:
+
+```text
+~/.config/clawobserver/clawobserver.env
+```
+
+Important settings:
+
+- `CLAWOBSERVER_HOST`
+- `CLAWOBSERVER_PORT`
+- `CLAWOBSERVER_REFRESH_SECONDS`
+- `CLAWOBSERVER_ARCHIVE_CADENCE_MINUTES`
+- `CLAWOBSERVER_DATA_DIR`
+- `CLAWOBSERVER_DATABASE_PATH`
+- `CLAWOBSERVER_RUNTIME_COMMAND`
+- `CLAWOBSERVER_RUNTIME_JSON`
+
+Default runtime source precedence:
+
+1. `CLAWOBSERVER_RUNTIME_COMMAND`
+2. `CLAWOBSERVER_RUNTIME_JSON`
+3. Built-in demo payload
+
+The shipped env template points `CLAWOBSERVER_RUNTIME_COMMAND` at:
+
+```text
+/usr/bin/env python3 <repo>/scripts/openclaw_runtime_adapter.py
+```
+
+The template also defaults automatic refresh to `30` seconds, matching the frontend minimum auto-refresh floor.
+
+## Service And Timer Management
+
+Installed units:
+
+- `clawobserver.service`
+- `clawobserver-capture.service`
+- `clawobserver-capture.timer`
+
+Common commands:
+
+```bash
+systemctl --user status clawobserver.service
+systemctl --user status clawobserver-capture.timer
+systemctl --user list-timers clawobserver-capture.timer
+systemctl --user restart clawobserver.service
+systemctl --user stop clawobserver.service
+systemctl --user start clawobserver.service
+systemctl --user start clawobserver-capture.service
+systemctl --user stop clawobserver-capture.timer
+systemctl --user start clawobserver-capture.timer
+journalctl --user -u clawobserver.service -n 100 --no-pager
+journalctl --user -u clawobserver-capture.service -n 100 --no-pager
+```
+
+These are user-level units. They run while the user session is active unless lingering is enabled separately on the host.
+
+## Manual Capture
+
+Capture one snapshot without waiting for the timer:
 
 ```bash
 python3 -m clawobserver capture
+```
+
+Or through the installed user unit:
+
+```bash
+systemctl --user start clawobserver-capture.service
 ```
 
 Seed demo history for UI validation:
@@ -82,236 +138,163 @@ Seed demo history for UI validation:
 python3 -m clawobserver seed-demo --days 7 --interval-minutes 30
 ```
 
-Useful environment overrides for manual runs:
+## Uninstall
 
-- `CLAWOBSERVER_RUNTIME_COMMAND`: command that prints runtime JSON
-- `CLAWOBSERVER_RUNTIME_JSON`: path to a JSON payload file
-- `CLAWOBSERVER_DATABASE_PATH`: SQLite archive location
-- `CLAWOBSERVER_HOST`: bind address, default `127.0.0.1`
-- `CLAWOBSERVER_PORT`: listen port, default `8420`
-
-If no runtime command or runtime JSON file is configured, the app falls back to a built-in demo payload generator.
-
-## Deployment via script
-
-The primary deployment entrypoint for operators is:
+Remove the user units while preserving config and archive state by default:
 
 ```bash
-./scripts/deploy.sh
+./scripts/uninstall.sh
 ```
 
-That script keeps the existing host-native deployment model and performs the recommended user-level install/start flow:
+Optional destructive flags:
 
-- renders `deploy/systemd/clawobserver.service` into `~/.config/systemd/user/`
-- renders `deploy/systemd/clawobserver-capture.service` into `~/.config/systemd/user/`
-- installs `deploy/systemd/clawobserver-capture.timer`
-- creates `~/.config/clawobserver/clawobserver.env` from the repo template if it does not already exist
-- preserves an existing env file on reruns
+- `./scripts/uninstall.sh --purge-config`
+- `./scripts/uninstall.sh --purge-state`
+- `./scripts/uninstall.sh --purge-all`
+
+Default uninstall behavior:
+
+- stops and disables the web service and capture timer
+- stops the one-shot capture service if it is running
+- removes the rendered user unit files
 - runs `systemctl --user daemon-reload`
-- enables and starts `clawobserver.service`
-- enables and starts `clawobserver-capture.timer`
-- prints the local access URL plus the most useful status and journal commands
+- preserves `~/.config/clawobserver/clawobserver.env`
+- preserves `~/.local/state/clawobserver/`
 
-Compatibility note:
+## Manual Development
 
-- `./scripts/install_user_service.sh` still exists, but it now forwards to `./scripts/deploy.sh`
-
-## Installed units and files
-
-The script installs or references these operator-visible artifacts:
-
-- `clawobserver.service`: long-running local web UI and API process
-- `clawobserver-capture.service`: one-shot archive capture command
-- `clawobserver-capture.timer`: 30-minute archive schedule
-- `~/.config/clawobserver/clawobserver.env`: runtime configuration
-- `~/.local/state/clawobserver/clawobserver.sqlite3`: archive database
-
-The default env template points `CLAWOBSERVER_RUNTIME_COMMAND` at the bundled adapter:
-
-```text
-scripts/openclaw_runtime_adapter.py
-```
-
-## Service management commands
-
-Common operator commands:
+Run the backend directly:
 
 ```bash
-systemctl --user status clawobserver.service
-systemctl --user status clawobserver-capture.timer
-systemctl --user restart clawobserver.service
-systemctl --user stop clawobserver.service
-systemctl --user start clawobserver.service
-systemctl --user start clawobserver-capture.service
-journalctl --user -u clawobserver.service -n 100 --no-pager
-journalctl --user -u clawobserver-capture.service -n 100 --no-pager
+python3 -m clawobserver serve
 ```
 
-These are user-level units. They run while the user session is active unless lingering is enabled separately on the host.
-
-## Access path and binding behavior
-
-By default, ClawObserver binds to:
-
-```text
-127.0.0.1:8420
-```
-
-That means the intended access path is a local browser on the same host:
-
-```text
-http://127.0.0.1:8420/
-```
-
-The service does not change this default during deployment. If you need a different bind address or port, edit `~/.config/clawobserver/clawobserver.env` and restart the service:
+Run the bundled runtime adapter directly:
 
 ```bash
-systemctl --user restart clawobserver.service
+python3 scripts/openclaw_runtime_adapter.py
 ```
 
-If you intentionally override `CLAWOBSERVER_HOST`, do it with full awareness that you are changing exposure beyond the default loopback-only model.
+Run backend tests:
 
-## Runtime adapter behavior
+```bash
+python3 -m pytest
+```
 
-ClawObserver resolves live runtime data in this order:
-
-1. `CLAWOBSERVER_RUNTIME_COMMAND`
-2. `CLAWOBSERVER_RUNTIME_JSON`
-3. built-in demo payload
-
-## Realtime scene configuration
-
-The Realtime page at `/` now mounts the React Three Fiber office scene as the production center panel. It uses `clawobserver/static/assets/static_scene.jpg` as the styling reference for both the work area and the reserved lounge area, but renders the shipped scene with deterministic repo-local geometry instead of runtime-fetched assets.
-
-The scene keeps exactly 12 fixed workstation slots. The latest refinement pass intentionally compacts that 12-desk footprint, moves scene summary content above the canvas so the production scene can fill the page horizontally, and enlarges desks, monitors, labels, lamps, and task stacks so desk state remains readable on a normal desktop viewport.
-
-The older measured-image layout config still exists in `clawobserver/static/reference-scene-layout.json` for the legacy DOM scene logic and related tests. The production R3F path keeps the stable renderer-facing `AgentVisualState[]` contract and fixed workstation-slot config in `frontend/office-scene-prototype`.
-
-Active/working agents render only at configured workstation slots. Idle/resting agents no longer stay seated at those desks; they render only in configured lounge slots, while their canonical workstation anchors remain visually empty and can still show placeholder hanging tags with task count `0`.
-
-## React Three Fiber scene
-
-The R3F scene remains embeddable and production-bound rather than prototype-only.
-
-Prototype constraints in this repo:
-
-- exactly 12 fixed workstation desks
-- scene styling references `clawobserver/static/assets/static_scene.jpg`
-- the work area and a reserved lounge/rest area both exist in MVP
-- hover and click interactions stay limited to highlight/name and an HTML detail panel
-- live OpenClaw data is adapted into a renderer-facing `AgentVisualState[]` contract, with demo fallback when live data is unavailable
-
-Scene routes:
-
-- `/prototype` serves the isolated R3F scene shell
-- `/` embeds the same renderer in the production Realtime dashboard
-- `/api/live/prototype` serves the narrowed live payload used by the prototype shell
-
-To build the prototype bundle:
+Frontend workflow:
 
 ```bash
 npm --prefix frontend/office-scene-prototype install
+npm --prefix frontend/office-scene-prototype test
 npm --prefix frontend/office-scene-prototype run build
 ```
 
-To run its focused tests:
+The built frontend bundle is emitted into `clawobserver/static/prototype/`.
+
+## Validation
+
+Useful local validation commands:
+
+```bash
+bash -n scripts/install.sh scripts/uninstall.sh scripts/deploy.sh scripts/install_user_service.sh scripts/systemd_user_common.sh
+python3 -m pytest
+node --check clawobserver/static/app.js
+```
+
+If you change the embedded scene or prototype bundle, also rerun:
 
 ```bash
 npm --prefix frontend/office-scene-prototype test
+npm --prefix frontend/office-scene-prototype run build
+npm --prefix frontend/office-scene-prototype run smoke:browser
 ```
 
-The built files are emitted to `clawobserver/static/prototype/`, which is served by the existing Python app.
+## Runtime Adapter Behavior
 
-### Office assets
+`scripts/openclaw_runtime_adapter.py` is the bundled conservative OpenClaw adapter. It:
 
-This pass imports a curated repo-local subset of Kenney `Furniture Kit` office assets. The exact source review, imported file list, and checksums are documented in `frontend/office-scene-prototype/src/data/office-assets.md` plus `frontend/office-scene-prototype/public/office-assets/kenney/provenance.json`.
-
-Current strategy:
-
-- imported office/furniture models are repo-local `OBJ/MTL` files under `frontend/office-scene-prototype/public/office-assets/kenney/`
-- the scene prefers Kenney-backed desks, chairs, monitor gear, plants, lounge tables, and bookcases, but keeps primitive fallbacks behind the same component seam
-- runtime remains offline and deterministic after initial local static asset delivery
-- the stable live `AgentVisualState[]` contract remains unchanged
-- exact license text is shipped at `frontend/office-scene-prototype/public/office-assets/kenney/licenses/Kenney-Furniture-Kit-CC0.txt`
-
-The bundled `scripts/openclaw_runtime_adapter.py` is a conservative OpenClaw CLI adapter. It:
-
-- runs `openclaw sessions --all-agents --json`
-- runs `openclaw gateway call status --json`
-- reads the real OpenClaw delivery queue from `~/.openclaw/delivery-queue/` and `~/.openclaw/delivery-queue/failed/`
-- derives active versus idle sessions from `ageMs`
+- reads OpenClaw session/runtime data
+- reads the on-disk delivery queue from `~/.openclaw/delivery-queue/` and `~/.openclaw/delivery-queue/failed/`
+- derives active versus idle sessions from stable runtime fields
 - aggregates per-agent totals and token counters
-- classifies Persistent vs One-Shot sessions conservatively from stable session-key conventions when the public session rows do not expose a first-class mode field
-- reads the OpenClaw session-store files referenced by the CLI output so archived token statistics can include `cacheRead` / `cacheWrite` counters when they are available
-- runs `openclaw gateway status --json`
-- reports gateway totals conservatively as available/not available rather than inventing extra metrics
-- reports delivery queue depth from the on-disk queue as `delivery_queue_pending` and `delivery_queue_failed`
-- falls back to structured runtime queue lanes or the public `queuedSystemEvents` backlog only when the delivery-queue path is unavailable
-- emits `gateways.exits_today` when it can do so conservatively
-  - if OpenClaw exposes a structured exits-today value in gateway status output, the adapter uses that directly
-  - otherwise, on Linux hosts using the OpenClaw user-level `systemd` gateway unit, the adapter counts today’s `Main process exited` journal events for `openclaw-gateway.service`
-  - this journal-derived count is a heuristic for gateway exits today and can include operator-initiated restarts/stops if systemd records them as a main-process exit event
-- emits a normalized JSON payload that ClawObserver can use for both live views and archive capture
+- classifies Persistent vs One-Shot sessions conservatively from stable session-key conventions when a first-class mode field is unavailable
+- reports delivery queue depth as `delivery_queue_pending` and `delivery_queue_failed`
+- reports gateway totals conservatively
+- emits `gateways.exits_today` from structured runtime data when available, otherwise from a documented `systemd` journal heuristic on supported Linux hosts
 
-Current adapter limitations are intentional:
+If the delivery queue path is unavailable, the adapter can fall back to other truthful runtime backlog signals instead of inventing queue lanes.
 
-- the validated queue model currently comes from the on-disk delivery queue layout rather than a first-class runtime queue API; the bundled adapter counts JSON queue items in the queue root as pending and in `failed/` as failed
-- the delivery queue files currently expose message metadata such as channel and retry details, but they do not clearly expose trustworthy internal queue lanes beyond pending versus failed
-- session-type totals are conservative and documented: the bundled adapter uses stable session-key conventions such as `:subagent:` and `:run:` to identify One-Shot sessions because the current public session rows do not publish a direct mode field for all sessions
-- gateway history remains limited to count snapshots, including the archived `exits_today` sample when available
-- cache-hit ratio is shown only when the runtime/archive source includes cache counters; custom adapters that omit those counters will surface the ratio as unavailable
-- if the adapter command fails, live requests and archive capture requests will fail until the configured runtime source is corrected
+If the real adapter is not usable yet, either:
 
-If your OpenClaw host keeps the delivery queue in a non-default location, set `OPENCLAW_DELIVERY_QUEUE_DIR` for the bundled adapter.
+- set `CLAWOBSERVER_RUNTIME_JSON` to a fixture file
+- remove both runtime overrides and use built-in demo data
 
-If you provide your own runtime command instead of the bundled adapter, emit the gateway reliability metric as `gateways.exits_today` in the normalized payload so it appears in both realtime and historical views.
+## Archive Cadence Semantics
 
-For static testing, point `CLAWOBSERVER_RUNTIME_JSON` at a JSON file or run without either runtime override to use demo data.
+- The shipped timer uses `OnCalendar=*:0/30`.
+- `current_day` history shows every archived point for that day.
+- Multi-day ranges use the last archived record from each day.
+- Token statistics also use the latest archived record per day because the source counters reset daily.
 
-## Archive cadence semantics
+Operationally:
 
-ClawObserver treats archived history as sampled state, not continuous telemetry.
+- history can be empty right after install until the first successful capture runs
+- `systemctl --user start clawobserver-capture.service` forces an initial sample
+- multi-day charts are daily summaries, not minute-resolution traces
 
-- The shipped timer runs every 30 minutes using `OnCalendar=*:0/30`.
-- `current_day` history returns every archived point for the day.
-- Multi-day ranges return only the last archived snapshot from each day.
-- Token statistics also use the latest archived record per day because the counters are expected to reset daily.
+## Data Paths
 
-Operationally, this means:
+Default operator-visible paths:
 
-- history may be empty immediately after deployment until the first successful archive capture completes
-- if you want an initial historical sample right away, run `systemctl --user start clawobserver-capture.service`
-- longer-range charts are daily summaries, not minute-resolution traces
-- historical line charts now render visible Y-axis numeric labels and shared mouse-hover tooltips that reveal every series value at the hovered X bucket
+- `~/.config/clawobserver/clawobserver.env`
+- `~/.config/systemd/user/clawobserver.service`
+- `~/.config/systemd/user/clawobserver-capture.service`
+- `~/.config/systemd/user/clawobserver-capture.timer`
+- `~/.local/state/clawobserver/`
+- `~/.local/state/clawobserver/clawobserver.sqlite3`
+
+Repo-local implementation paths:
+
+- `deploy/systemd/` for unit and env templates
+- `scripts/` for install, uninstall, deploy wrappers, and the runtime adapter
+- `frontend/office-scene-prototype/` for the embeddable scene source
+- `clawobserver/static/prototype/` for the built frontend bundle served by the Python app
+
+## Realtime Scene And Assets
+
+The production Realtime page at `/` embeds the repo-local office scene bundle. The scene keeps a stable renderer-facing `AgentVisualState[]` contract and exactly 12 fixed workstation slots for the current MVP.
+
+Asset and provenance notes:
+
+- repo-local Kenney office assets ship under `frontend/office-scene-prototype/public/office-assets/kenney/`
+- provenance metadata is recorded in `frontend/office-scene-prototype/public/office-assets/kenney/provenance.json`
+- Kenney license text ships in `frontend/office-scene-prototype/public/office-assets/kenney/licenses/Kenney-Furniture-Kit-CC0.txt`
+- preview/avatar and WorkAdventure-derived assets ship with their own repo-local provenance and license files under `frontend/office-scene-prototype/public/office-assets/`
+- runtime delivery stays offline and deterministic after local install; the app does not rely on live third-party asset fetches
 
 ## Troubleshooting
 
-If the deployment script fails:
+If install fails:
 
 - confirm `systemctl --user` works in the current login session
 - confirm Python 3.12+ is installed
-- read the exact error before retrying
+- rerun `./scripts/install.sh` and read the first failing command
 
-If the web UI starts but data is empty or failing:
+If the UI is unreachable:
+
+- check `systemctl --user status clawobserver.service`
+- check the configured host and port in `~/.config/clawobserver/clawobserver.env`
+- remember that the default bind is loopback-only
+
+If data is empty or degraded:
 
 - inspect `~/.config/clawobserver/clawobserver.env`
 - run `journalctl --user -u clawobserver.service -n 100 --no-pager`
 - run `journalctl --user -u clawobserver-capture.service -n 100 --no-pager`
-- test the bundled adapter directly with `python3 scripts/openclaw_runtime_adapter.py`
+- run `python3 scripts/openclaw_runtime_adapter.py`
 
-If the real runtime adapter is not usable yet:
+If gateway exits today looks unavailable or low:
 
-- comment out `CLAWOBSERVER_RUNTIME_COMMAND` in the env file and set `CLAWOBSERVER_RUNTIME_JSON`, or
-- remove both runtime overrides for a demo-data smoke test
-
-If gateway exits today looks unavailable or suspiciously low:
-
-- run `openclaw gateway status --json` and confirm the gateway service is detectable
+- run `openclaw gateway status --json`
 - run `journalctl --user -u openclaw-gateway.service --since today --no-pager`
-- remember that the journal-derived count is a conservative exit-event heuristic, not a perfect runtime-native counter
-
-If you cannot reach the UI:
-
-- confirm the service is active with `systemctl --user status clawobserver.service`
-- confirm the configured host and port in `~/.config/clawobserver/clawobserver.env`
-- remember that the default bind address is loopback-only, so remote machines cannot reach it unless you intentionally change the bind configuration
+- remember that the journal-derived count is a conservative heuristic, not a runtime-native guaranteed counter

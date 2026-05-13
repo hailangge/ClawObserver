@@ -16,6 +16,7 @@ class AgentSessionSample:
     agent_name: str
     active_sessions: int
     total_sessions: int
+    visual_status: str | None = None
     role_style_key: str | None = None
     thinking_level: str | None = None
     latest_user_input: str | None = None
